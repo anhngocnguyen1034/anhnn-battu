@@ -159,12 +159,17 @@ def calculate_professional_bazi(dt, gender_str):
     nayin = [bazi.getYearNaYin(), bazi.getMonthNaYin(), bazi.getDayNaYin(), bazi.getTimeNaYin()]
     
     # 吉神凶煞 (Shen Sha)
-    ss = [
-        get_shensha_list(bazi.getYearShenSha()), 
-        get_shensha_list(bazi.getMonthShenSha()), 
-        get_shensha_list(bazi.getDayShenSha()), 
-        get_shensha_list(bazi.getTimeShenSha())
-    ]
+    try:
+        ss = [
+            get_shensha_list(bazi.getYearShenSha()), 
+            get_shensha_list(bazi.getMonthShenSha()), 
+            get_shensha_list(bazi.getDayShenSha()), 
+            get_shensha_list(bazi.getTimeShenSha())
+        ]
+    except AttributeError:
+        # lunar-python 1.4.8 的 EightChar 可能没有这几个方法，降级显示日柱神煞
+        day_ss = " ".join(lunar.getDayJiShen() + lunar.getDayXiongSha())
+        ss = ["", "", day_ss, ""]
     
     # 五行能量统计
     all_wx = bazi.getYearWuXing() + bazi.getMonthWuXing() + bazi.getDayWuXing() + bazi.getTimeWuXing()
