@@ -283,7 +283,7 @@ def build_system_prompt(bazi_data):
 """
 
 # --- Application Entry ---
-st.title("玄冥 | <span class='chinese-serif'>命理架构终端</span>", unsafe_allow_html=True)
+st.markdown("<h1>玄冥 | <span class='chinese-serif'>命理架构终端</span></h1>", unsafe_allow_html=True)
 st.markdown("秉持传统数术严谨，重构当代命运图谱。")
 
 # [ Sidebar Settings ]
@@ -334,7 +334,7 @@ if 'bazi_data' in st.session_state:
     col_matrix, col_chat = st.columns([1, 1.2])
     
     with col_matrix:
-        st.subheader("<span class='chinese-serif'>八字原局</span> (NATIVE MATRIX)", unsafe_allow_html=True)
+        st.markdown("<h3><span class='chinese-serif'>八字原局</span> (NATIVE MATRIX)</h3>", unsafe_allow_html=True)
         
         # Pillars Rendering
         cols = st.columns(4)
@@ -368,7 +368,7 @@ if 'bazi_data' in st.session_state:
                 st.markdown(f"`{d['start_year']} (起于{d['start_age']}岁) -> {d['ganzhi']}`")
 
     with col_chat:
-        st.subheader("<span class='chinese-serif'>命理论道</span> (ORACLE ENGINE)", unsafe_allow_html=True)
+        st.markdown("<h3><span class='chinese-serif'>命理论道</span> (ORACLE ENGINE)</h3>", unsafe_allow_html=True)
         
         # Chat Rendering
         for msg in st.session_state['chat_history']:
