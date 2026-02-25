@@ -104,6 +104,12 @@ st.markdown("""
         border: 1px solid var(--border-color);
     }
     
+    .stMarkdown p, .stMarkdown li, [data-testid="stChatMessage"] p {
+        color: var(--text-primary) !important;
+        line-height: 1.6;
+        font-size: 1.05rem;
+    }
+    
     /* Bazi Grid Display */
     .bazi-pillar {
         background: var(--panel-bg);
@@ -423,7 +429,21 @@ if 'bazi_data' in st.session_state:
                     
                     # 检查大模型是否决定调用工具 (e.g., 查流年)
                     if response_message.tool_calls:
-                        st.session_state.messages.append(response_message)
+                        # 重要：显式转换为 dict，防止某些类 OpenAI 代理端点丢失 tool_calls 上下文记忆
+                        st.session_state.messages.append({
+                            "role": "assistant",
+                            "content": response_message.content or "",
+                            "tool_calls": [
+                                {
+                                    "id": t.id,
+                                    "type": t.type,
+                                    "function": {
+                                        "name": t.function.name,
+                                        "arguments": t.function.arguments
+                                    }
+                                } for t in response_message.tool_calls
+                            ]
+                        })
                         
                         for tool_call in response_message.tool_calls:
                             if tool_call.function.name == "get_annual_fortune":
