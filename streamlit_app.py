@@ -61,6 +61,19 @@ st.markdown("""
         border-radius: 6px;
     }
     
+    /* Fix labels color */
+    label, .stRadio label p {
+        color: var(--text-primary) !important;
+    }
+    
+    /* Remove top white bar (Streamlit header) and adjust padding */
+    [data-testid="stHeader"] {
+        display: none;
+    }
+    .block-container {
+        padding-top: 2rem !important;
+    }
+    
     /* Elegant Buttons */
     .stButton>button {
         background-color: transparent !important;
@@ -298,7 +311,12 @@ with st.sidebar:
     st.markdown("---")
     st.header("📜 四柱排盘 (BAZI INPUT)")
     gender = st.radio("系统性别", ["乾造 (Male)", "坤造 (Female)"])
-    birth_date = st.date_input("公历出生日", value=datetime(1990, 6, 15))
+    birth_date = st.date_input(
+        "公历出生日", 
+        value=datetime(1990, 6, 15),
+        min_value=datetime(1900, 1, 1),
+        max_value=datetime(2100, 1, 1)
+    )
     birth_time = st.time_input("出生时间 (时辰)")
     
     if st.button("生成命盘体系 (GENERATE)"):
