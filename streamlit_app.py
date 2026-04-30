@@ -272,9 +272,12 @@ PROVIDER_PRESETS = {
 
 
 def _get_default_api_key(env_key: str) -> str:
-    if env_key and hasattr(st, "secrets") and st.secrets.get(env_key):
-        return st.secrets[env_key]
     if env_key:
+        try:
+            if st.secrets.get(env_key):
+                return st.secrets[env_key]
+        except Exception:
+            pass
         return os.environ.get(env_key, "")
     return ""
 
