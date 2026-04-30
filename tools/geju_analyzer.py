@@ -72,6 +72,7 @@ def analyze_geju(bazi_data: Dict[str, Any]) -> str:
         tougan_where = "月干" if is_tougan else ""
     else:
         tougan_where = ""
+        is_tougan = False
         if month_gan and month_gan in hidden:
             shishen_name = (SHISHEN_MAP.get(day_master, {}) or {}).get(month_gan, "")
             tougan_where = "月干"
