@@ -3,3 +3,4 @@ lunar-python>=1.4.8
 openai>=1.14.0
 plotly>=5.19.0
 pandas>=2.0.0
+mcp>=1.0.0

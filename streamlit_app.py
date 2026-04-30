@@ -1,15 +1,17 @@
+import json
 import os
 from datetime import datetime
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 from openai import OpenAI
 
 from engine import calculate_professional_bazi
 from prompts import build_system_prompt
 from tools import TOOL_SCHEMAS, dispatch_tool
-from agent import get_messages_for_api, run_react_loop
+from agent import get_messages_for_api, run_react_loop, run_react_loop_streaming
 
 st.set_page_config(
     page_title="玄冥 | MING MATRIX",
@@ -100,6 +102,18 @@ st.markdown("""
     .nayin { font-size: 0.75rem; color: var(--accent-gold); margin-bottom: 8px; }
     .god-zhi { font-size: 0.75rem; color: var(--text-secondary); border-top: 1px solid var(--border-color); padding-top: 8px; }
     .shensha { font-size: 0.75rem; color: var(--accent-jade); margin-top: 4px; }
+    /* --- Wuxing element colors --- */
+    .wx-wood   { color: #50c878 !important; }
+    .wx-fire   { color: #e94560 !important; }
+    .wx-earth  { color: #d4af37 !important; }
+    .wx-metal  { color: #c0c0c0 !important; }
+    .wx-water  { color: #4a90d9 !important; }
+    /* --- Pillar card fade-in animation --- */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; } }
+    .bazi-pillar { animation: fadeIn 0.5s ease-in-out; }
+    /* --- Disheng/xunkong micro labels --- */
+    .dishi-label { font-size: 0.7rem; color: var(--accent-jade); opacity: 0.85; margin-top: 2px; }
+    .xunkong-label { font-size: 0.65rem; color: var(--accent-silver); opacity: 0.7; margin-top: 1px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -121,6 +135,109 @@ def render_wuxing_chart(wuxing):
         plot_bgcolor='rgba(0,0,0,0)',
         margin=dict(l=20, r=20, t=20, b=20),
         height=250
+    )
+    return fig
+
+
+# ── Wuxing color helper ──────────────────────────────────────────────────────
+
+_WUXING_COLOR_MAP = {
+    "甲": "#50c878", "乙": "#50c878", "寅": "#50c878", "卯": "#50c878",   # Wood
+    "丙": "#e94560", "丁": "#e94560", "巳": "#e94560", "午": "#e94560",   # Fire
+    "戊": "#d4af37", "己": "#d4af37", "辰": "#d4af37", "戌": "#d4af37",
+    "丑": "#d4af37", "未": "#d4af37",                                      # Earth
+    "庚": "#c0c0c0", "辛": "#c0c0c0", "申": "#c0c0c0", "酉": "#c0c0c0",   # Metal
+    "壬": "#4a90d9", "癸": "#4a90d9", "亥": "#4a90d9", "子": "#4a90d9",   # Water
+}
+
+
+def get_wuxing_color(char: str) -> str:
+    """Return the hex color for a Chinese character based on its wuxing element."""
+    return _WUXING_COLOR_MAP.get(char, "#e6edf3")
+
+
+def colored_char(char: str) -> str:
+    """Wrap a single character in a <span> with its wuxing color."""
+    color = get_wuxing_color(char)
+    return f'<span style="color:{color};font-weight:bold;">{char}</span>'
+
+
+def colored_ganzhi(gz: str) -> str:
+    """Color both characters of a two-char gan-zhi string."""
+    if len(gz) >= 2:
+        return colored_char(gz[0]) + colored_char(gz[1])
+    return gz
+
+
+def _render_wuxing_bar_chart(bzi):
+    """Render a detailed wuxing bar chart with power percentages."""
+    raw = bzi.get("wuxing", {})
+    # Try to use refined power data if available
+    try:
+        from tools.wuxing_calculator import calculate_wuxing_power
+        result = json.loads(calculate_wuxing_power(bzi))
+        power = result.get("power", {})
+    except Exception:
+        power = {}
+    if not power:
+        power = raw
+    elements = ["金", "木", "水", "火", "土"]
+    colors = ["#c0c0c0", "#50c878", "#4a90d9", "#e94560", "#d4af37"]
+    values = [power.get(e, raw.get(f"{e}(Metal)" if e == "金" else f"{e}(Wood)" if e == "木" else f"{e}(Water)" if e == "水" else f"{e}(Fire)" if e == "火" else f"{e}(Earth)", 0)) for e in elements]
+    fig = go.Figure(go.Bar(
+        x=elements, y=values, marker_color=colors,
+        text=[f"{v}%" if isinstance(v, (int, float)) and v > 0 else str(v) for v in values],
+        textposition="outside", textfont=dict(color="#e6edf3", size=12),
+    ))
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(tickfont=dict(color="#8b949e", size=14)),
+        yaxis=dict(tickfont=dict(color="#8b949e"), gridcolor="rgba(48,54,61,0.5)", range=[0, max(max(values) * 1.2, 10)]),
+        margin=dict(l=20, r=20, t=10, b=20), height=260,
+    )
+    return fig
+
+
+def _render_dayun_timeline(bzi):
+    """Render a horizontal timeline chart for dayun (luck pillars)."""
+    dayun = bzi.get("dayun", [])
+    if not dayun:
+        return None
+    current_year = datetime.now().year
+    years = [d["start_year"] for d in dayun]
+    end_years = years[1:] + [years[-1] + 10]
+    ganzhi_labels = [d["ganzhi"] for d in dayun]
+    bar_colors = []
+    for gz in ganzhi_labels:
+        if len(gz) >= 2:
+            zhi_color = get_wuxing_color(gz[1])
+            bar_colors.append(zhi_color)
+        else:
+            bar_colors.append("#8b949e")
+    # Highlight current year segment
+    for idx in range(len(years)):
+        if years[idx] <= current_year < end_years[idx]:
+            bar_colors[idx] = "#e94560"
+    fig = go.Figure()
+    for idx in range(len(dayun)):
+        width = end_years[idx] - years[idx]
+        fig.add_trace(go.Bar(
+            y=[ganzhi_labels[idx]], x=[width], base=[years[idx]],
+            orientation="h", marker_color=bar_colors[idx],
+            text=f"{years[idx]}-{end_years[idx]-1}",
+            textposition="inside", textfont=dict(color="#0d1117", size=11),
+            name=ganzhi_labels[idx], showlegend=False,
+            hovertemplate=f"{ganzhi_labels[idx]}<br>{years[idx]}-{end_years[idx]-1}<br>起于{dayun[idx]['start_age']}岁<extra></extra>",
+        ))
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(
+            tickfont=dict(color="#8b949e", size=10), gridcolor="rgba(48,54,61,0.3)",
+            title=dict(text="年份", font=dict(color="#8b949e", size=11)),
+        ),
+        yaxis=dict(tickfont=dict(color="#e6edf3", size=12), autorange="reversed"),
+        margin=dict(l=10, r=10, t=5, b=30), height=max(180, len(dayun) * 36),
+        bargap=0.3,
     )
     return fig
 
@@ -196,6 +313,9 @@ with st.sidebar:
             custom_model_override = st.text_input("模型名 (留空用上方选择)", placeholder="留空则使用下拉选择")
             if custom_model_override.strip():
                 selected_model = custom_model_override.strip()
+            enable_streaming = st.toggle("流式输出 (Streaming)", value=True, help="实时逐字显示回答；若 API 不稳定可关闭。")
+    else:
+        enable_streaming = True
 
     st.markdown("---")
     st.header("📜 四柱排盘 (BAZI INPUT)")
@@ -240,31 +360,158 @@ if 'bazi_data' in st.session_state:
     col_matrix, col_chat = st.columns([1, 1.2])
 
     with col_matrix:
-        st.markdown("<h3><span class='chinese-serif'>八字原局</span> (NATIVE MATRIX)</h3>", unsafe_allow_html=True)
-        cols = st.columns(4)
-        labels = ["年柱 (祖业)", "月柱 (机缘)", "日柱 (本我)", "时柱 (晚成)"]
-        for i, col in enumerate(cols):
-            with col:
-                st.markdown(f"""
-                <div class="bazi-pillar">
-                    <div class="pillar-header">{labels[i]}</div>
-                    <div class="god-gan">{bzi['tg_gan'][i]}</div>
-                    <div class="gan">{bzi['pillars'][i][0]}</div>
-                    <div class="zhi">{bzi['pillars'][i][1]}</div>
-                    <div class="nayin">{bzi['nayin'][i]}</div>
-                    <div class="god-zhi">藏干: {bzi['tg_zhi'][i]}</div>
-                    <div class="shensha">{bzi['shensha'][i]}</div>
-                </div>
-                """, unsafe_allow_html=True)
-        st.markdown("<br/>", unsafe_allow_html=True)
-        cols_bottom = st.columns([1, 1.2])
-        with cols_bottom[0]:
-            st.markdown(f"**命宫**: {bzi['minggong']} &nbsp;|&nbsp; **胎元**: {bzi['taiyuan']}")
-            st.plotly_chart(render_wuxing_chart(bzi['wuxing']), use_container_width=True)
-        with cols_bottom[1]:
-            st.markdown("**后天大运轨迹** (Luck Pillars)")
-            for d in bzi['dayun']:
-                st.markdown(f"`{d['start_year']} (起于{d['start_age']}岁) -> {d['ganzhi']}`")
+        st.markdown("<h3><span class='chinese-serif'>命盘矩阵</span> (MING MATRIX)</h3>", unsafe_allow_html=True)
+        tab_origin, tab_dayun, tab_geju, tab_wuxing = st.tabs(
+            ["原局排盘", "大运流年", "格局神煞", "五行精算"]
+        )
+
+        # ── Tab 1: 原局排盘 ─────────────────────────────────────────────────
+        with tab_origin:
+            cols = st.columns(4)
+            labels = ["年柱 (祖业)", "月柱 (机缘)", "日柱 (本我)", "时柱 (晚成)"]
+            dishi_list = bzi.get("dishi", ["", "", "", ""])
+            xunkong_list = bzi.get("xunkong", ["", "", "", ""])
+            for i, col in enumerate(cols):
+                with col:
+                    gan_ch = bzi['pillars'][i][0]
+                    zhi_ch = bzi['pillars'][i][1]
+                    dishi_val = dishi_list[i] if i < len(dishi_list) else ""
+                    xunkong_val = xunkong_list[i] if i < len(xunkong_list) else ""
+                    dishi_html = f'<div class="dishi-label">{dishi_val}</div>' if dishi_val else ""
+                    xunkong_html = f'<div class="xunkong-label">旬空: {xunkong_val}</div>' if xunkong_val else ""
+                    st.markdown(f"""
+                    <div class="bazi-pillar">
+                        <div class="pillar-header">{labels[i]}</div>
+                        <div class="god-gan">{bzi['tg_gan'][i]}</div>
+                        <div class="gan">{colored_char(gan_ch)}</div>
+                        <div class="zhi">{colored_char(zhi_ch)}</div>
+                        <div class="nayin">{bzi['nayin'][i]}</div>
+                        <div class="god-zhi">藏干: {bzi['tg_zhi'][i]}</div>
+                        <div class="shensha">{bzi['shensha'][i]}</div>
+                        {dishi_html}
+                        {xunkong_html}
+                    </div>
+                    """, unsafe_allow_html=True)
+            st.markdown("<br/>", unsafe_allow_html=True)
+            cols_bottom = st.columns([1, 1.2])
+            with cols_bottom[0]:
+                shengong = bzi.get("shengong", "")
+                taixi = bzi.get("taixi", "")
+                extra_info = f"**命宫**: {bzi['minggong']} &nbsp;|&nbsp; **胎元**: {bzi['taiyuan']}"
+                if shengong:
+                    extra_info += f" &nbsp;|&nbsp; **身宫**: {shengong}"
+                if taixi:
+                    extra_info += f" &nbsp;|&nbsp; **胎息**: {taixi}"
+                st.markdown(extra_info, unsafe_allow_html=True)
+                st.plotly_chart(render_wuxing_chart(bzi['wuxing']), use_container_width=True)
+            with cols_bottom[1]:
+                st.markdown("**大运概览**")
+                for d in bzi['dayun']:
+                    st.markdown(f"`{d['start_year']} (起于{d['start_age']}岁) -> {d['ganzhi']}`")
+
+        # ── Tab 2: 大运流年 ─────────────────────────────────────────────────
+        with tab_dayun:
+            st.markdown("#### 后天大运轨迹 (Luck Pillars)")
+            dayun = bzi.get("dayun", [])
+            if dayun:
+                current_year = datetime.now().year
+                for d in dayun:
+                    end_year = d["start_year"] + 10
+                    is_current = d["start_year"] <= current_year < end_year
+                    marker = " **[当前]**" if is_current else ""
+                    gz_colored = colored_ganzhi(d["ganzhi"])
+                    st.markdown(
+                        f"<span style='color:#8b949e;'>{d['start_year']}</span> "
+                        f"(起于{d['start_age']}岁) &rarr; "
+                        f"<span style='font-size:1.3rem;'>{gz_colored}</span>{marker}",
+                        unsafe_allow_html=True,
+                    )
+                st.markdown("<br/>", unsafe_allow_html=True)
+                fig_dayun = _render_dayun_timeline(bzi)
+                if fig_dayun:
+                    st.plotly_chart(fig_dayun, use_container_width=True)
+            else:
+                st.info("暂无大运数据。")
+
+        # ── Tab 3: 格局神煞 ─────────────────────────────────────────────────
+        with tab_geju:
+            st.markdown("#### 格局判定 (Geju Analysis)")
+            try:
+                from tools.geju_analyzer import analyze_geju
+                geju_raw = analyze_geju(bzi)
+                geju = json.loads(geju_raw) if isinstance(geju_raw, str) else geju_raw
+                geju_context = geju.get("context", "")
+                if geju_context:
+                    st.markdown(f"> {geju_context}")
+                geju_kv = {k: v for k, v in geju.items() if k != "context"}
+                if geju_kv:
+                    for k, v in geju_kv.items():
+                        st.markdown(f"- **{k}**: {v}")
+            except Exception as e:
+                st.warning(f"格局分析不可用: {e}")
+
+            st.markdown("<br/>", unsafe_allow_html=True)
+            st.markdown("#### 神煞一览 (Shen Sha)")
+            shensha_detail = bzi.get("shensha_detail", {})
+            if shensha_detail:
+                for category, items in shensha_detail.items():
+                    if items:
+                        st.markdown(f"**{category}**: {', '.join(items) if isinstance(items, list) else items}")
+            else:
+                pillar_names = ["年柱", "月柱", "日柱", "时柱"]
+                has_any = False
+                for i, ss in enumerate(bzi.get("shensha", [])):
+                    if ss:
+                        has_any = True
+                        st.markdown(f"- **{pillar_names[i]}**: {ss}")
+                if not has_any:
+                    st.info("命局未见显著神煞。")
+
+            st.markdown("<br/>", unsafe_allow_html=True)
+            st.markdown("#### 刑冲合害 (Xing-Chong)")
+            xingchong = bzi.get("xingchong", {})
+            if xingchong:
+                for rel_type, rel_list in xingchong.items():
+                    if rel_list:
+                        st.markdown(f"**{rel_type}**: {', '.join(rel_list)}")
+
+        # ── Tab 4: 五行精算 ─────────────────────────────────────────────────
+        with tab_wuxing:
+            st.markdown("#### 五行力量精算 (Wuxing Power)")
+            try:
+                from tools.wuxing_calculator import calculate_wuxing_power
+                wx_result = json.loads(calculate_wuxing_power(bzi))
+                power = wx_result.get("power", {})
+                strong = wx_result.get("strong", [])
+                weak = wx_result.get("weak", [])
+                balanced = wx_result.get("balanced", False)
+                context = wx_result.get("context", "")
+                if context:
+                    st.markdown(f"> {context}")
+                elem_colors = {"金": "#c0c0c0", "木": "#50c878", "水": "#4a90d9", "火": "#e94560", "土": "#d4af37"}
+                for elem, pct in power.items():
+                    bar_len = int(pct / 2)
+                    bar = "█" * bar_len
+                    color = elem_colors.get(elem, "#e6edf3")
+                    st.markdown(
+                        f"<span style='color:{color};font-weight:bold;'>{elem}</span> "
+                        f"<code style='color:{color};'>{bar}</code> {pct}%",
+                        unsafe_allow_html=True,
+                    )
+                if strong:
+                    st.markdown(f"**偏旺**: {', '.join(strong)}")
+                if weak:
+                    st.markdown(f"**偏弱**: {', '.join(weak)}")
+                if balanced:
+                    st.markdown("**五行较均衡**")
+            except Exception:
+                raw = bzi.get("wuxing", {})
+                for k, v in raw.items():
+                    st.markdown(f"- **{k}**: {v}")
+
+            st.markdown("<br/>", unsafe_allow_html=True)
+            fig_bar = _render_wuxing_bar_chart(bzi)
+            st.plotly_chart(fig_bar, use_container_width=True)
 
     with col_chat:
         st.markdown("<h3><span class='chinese-serif'>命理论道</span> (ORACLE ENGINE)</h3>", unsafe_allow_html=True)
@@ -286,23 +533,69 @@ if 'bazi_data' in st.session_state:
                 else:
                     try:
                         client = OpenAI(api_key=api_key, base_url=base_url)
-                        messages_for_api = get_messages_for_api(st.session_state['messages'])
-                        final_content, updated_messages, fact_check_results = run_react_loop(
-                            client,
-                            selected_model,
-                            messages_for_api,
-                            TOOL_SCHEMAS,
-                            dispatch_tool,
-                            bazi_data=st.session_state['bazi_data'],
-                            max_steps=8,
-                            do_fact_check=True,
+                        original_count = len(st.session_state['messages'])
+                        messages_for_api = get_messages_for_api(
+                            st.session_state['messages'],
+                            client=client,
                         )
-                        st.session_state['messages'] = updated_messages
-                        message_placeholder.markdown(final_content)
-                        st.session_state['chat_history'].append({"role": "assistant", "content": final_content})
-                        if fact_check_results:
-                            for fc in fact_check_results:
-                                st.warning(f"Fact-Check: {fc.get('year')}年 声称「{fc.get('claimed')}」实际为「{fc.get('actual')}」，已按实际校正。")
+                        if len(messages_for_api) < original_count:
+                            st.caption("📜 此前对话已摘要保存，上下文已优化。")
+
+                        if enable_streaming:
+                            # --- Streaming mode ---
+                            accumulated = ""
+                            status_box = None
+                            gen = run_react_loop_streaming(
+                                client,
+                                selected_model,
+                                messages_for_api,
+                                TOOL_SCHEMAS,
+                                dispatch_tool,
+                                bazi_data=st.session_state['bazi_data'],
+                                max_steps=8,
+                                do_fact_check=True,
+                            )
+                            for item in gen:
+                                if isinstance(item, tuple):
+                                    final_content, updated_messages, fact_check_results = item
+                                    if status_box is not None:
+                                        status_box.update(label="推算完成", state="complete")
+                                elif item.startswith("[STATUS] "):
+                                    status_text = item.removeprefix("[STATUS] ")
+                                    if status_box is None:
+                                        status_box = st.status(status_text, state="running")
+                                    else:
+                                        status_box.update(label=status_text, state="running")
+                                else:
+                                    accumulated += item
+                                    message_placeholder.markdown(accumulated + "▌")
+
+                            # Final render without cursor
+                            message_placeholder.markdown(final_content)
+                            st.session_state['messages'] = updated_messages
+                            st.session_state['chat_history'].append({"role": "assistant", "content": final_content})
+                            if fact_check_results:
+                                for fc in fact_check_results:
+                                    st.warning(f"Fact-Check: {fc.get('year')}年 声称「{fc.get('claimed')}」实际为「{fc.get('actual')}」，已按实际校正。")
+                        else:
+                            # --- Non-streaming fallback ---
+                            with st.spinner("正在推算..."):
+                                final_content, updated_messages, fact_check_results = run_react_loop(
+                                    client,
+                                    selected_model,
+                                    messages_for_api,
+                                    TOOL_SCHEMAS,
+                                    dispatch_tool,
+                                    bazi_data=st.session_state['bazi_data'],
+                                    max_steps=8,
+                                    do_fact_check=True,
+                                )
+                            st.session_state['messages'] = updated_messages
+                            message_placeholder.markdown(final_content)
+                            st.session_state['chat_history'].append({"role": "assistant", "content": final_content})
+                            if fact_check_results:
+                                for fc in fact_check_results:
+                                    st.warning(f"Fact-Check: {fc.get('year')}年 声称「{fc.get('claimed')}」实际为「{fc.get('actual')}」，已按实际校正。")
                     except Exception as e:
                         st.error(f"引擎同步异常: {e}")
 

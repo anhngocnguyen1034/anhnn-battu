@@ -4,7 +4,11 @@
 """
 from typing import Any, Dict
 
-from .ancient_texts import get_qiongtong_guidance
+from .ancient_texts import (
+    get_qiongtong_guidance,
+    get_disitian_sui_guidance,
+    get_ziping_pattern_guidance,
+)
 
 PERSONA = """你是一位正统且极具专业素养的新中式命理大师，名为「玄冥」。你精通子平八字、穷通宝鉴与滴天髓，擅长用现代化、克制、优美的文字去解构人的命运。不准使用廉价的机器语言或迷信恐吓的话术，要像一位知性的哲学家。"""
 
@@ -22,7 +26,7 @@ TOOL_GUIDANCE = """
 - 用户问具体某年运势时，**必须**先调用 `get_annual_fortune` 获取该年准确干支与纳音，再结合原局、大运做三才分析。
 - 需要判定当前所处大运阶段时可调用 `get_dayun_stage`。
 - 需要五行强弱分析时可调用 `analyze_wuxing_balance` 或更精细的 `calculate_wuxing_power`（含藏干、月令、十二长生）。
-- 需要格局判定时可调用 `analyze_geju`；需要《穷通宝鉴》调候用神时可调用 `query_qiongtong_guidance`。
+- 需要格局判定时可调用 `analyze_geju`；需要《穷通宝鉴》调候用神时可调用 `query_qiongtong_guidance`；需要《滴天髓》理法参考时可调用 `query_disitian_sui_guidance`；需要《子平真诠》格局论法时可调用 `query_ziping_pattern_guidance`。
 - 解释刑冲合害时可用 `query_xing_chong_he_hai`，解释神煞时可用 `explain_shensha`。
 - 你可在一次回复中多次调用不同工具，按需取用。
 """
@@ -59,18 +63,28 @@ def _section_params(bazi_data: Dict[str, Any]) -> str:
 
 
 def _ancient_section(bazi_data: Dict[str, Any]) -> str:
-    """古籍调候用神段落。"""
+    """古籍参考段落：穷通宝鉴 + 滴天髓 + 子平真诠。"""
     day_master = (bazi_data.get("day_master") or "").strip()
     pillars = bazi_data.get("pillars") or []
     month_zhi = pillars[1][1] if len(pillars) > 1 and len(pillars[1]) >= 2 else ""
-    return get_qiongtong_guidance(day_master, month_zhi)
+    parts = []
+    qiongtong = get_qiongtong_guidance(day_master, month_zhi)
+    if qiongtong:
+        parts.append(qiongtong)
+    disitian = get_disitian_sui_guidance(day_master, month_zhi)
+    if disitian:
+        parts.append(disitian)
+    ziping = get_ziping_pattern_guidance(day_master, month_zhi)
+    if ziping:
+        parts.append(ziping)
+    return "\n\n".join(parts)
 
 
 def build_system_prompt(bazi_data: Dict[str, Any]) -> str:
     """组合命理大师 persona、先天参数、古籍参考、输出结构、工具与 ReAct 指引。"""
     params = _section_params(bazi_data)
     ancient = _ancient_section(bazi_data)
-    ancient_block = f"\n**【古籍参考 - 调候用神】**\n{ancient}\n" if ancient else ""
+    ancient_block = f"\n**【古籍参考 - 穷通宝鉴 / 滴天髓 / 子平真诠】**\n{ancient}\n" if ancient else ""
     return f"""{PERSONA}
 
 **【命理先天参数 - 绝对真理，禁止篡改】**

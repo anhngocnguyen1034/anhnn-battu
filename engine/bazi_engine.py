@@ -3,6 +3,8 @@ from typing import Dict, Any, List
 
 from lunar_python import Solar
 
+from engine.shensha import calculate_shensha, format_shensha_for_pillars
+
 
 def _get_shensha_list(shensha_dict: Dict[str, Any] | None) -> str:
     """
@@ -119,15 +121,9 @@ def calculate_professional_bazi(dt: datetime, gender_str: str) -> Dict[str, Any]
         bazi.getTimeNaYin(),
     ]
 
-    # 吉神凶煞 (Shen Sha) - 使用 Lunar 对象的日柱神煞
-    day_jishen = lunar.getDayJiShen()
-    day_xiongssha = lunar.getDayXiongSha()
-    ss: List[str] = [
-        "",
-        "",
-        " ".join(day_jishen + day_xiongssha),
-        "",
-    ]
+    # 吉神凶煞 (Shen Sha) - 基于四柱干支的命局神煞
+    _shensha_dict = calculate_shensha([ygz, mgz, dgz, tgz])
+    ss: List[str] = format_shensha_for_pillars(_shensha_dict)
 
     # 五行能量统计（基础版：按字面五行计数）
     all_wx = (
@@ -199,10 +195,7 @@ def calculate_professional_bazi(dt: datetime, gender_str: str) -> Dict[str, Any]
         "tg_zhi": tg_zhi,
         "nayin": nayin,
         "shensha": ss,
-        "shensha_detail": {
-            "吉神": day_jishen,
-            "凶煞": day_xiongssha,
-        },
+        "shensha_detail": _shensha_dict,
         "wuxing": wuxing,
         "dayun": da_yun,
         "minggong": ming_gong,

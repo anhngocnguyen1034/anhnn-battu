@@ -1,20 +1,19 @@
+"""Test review script - validates Bazi engine calculations for sample cases."""
 import json
 from datetime import datetime
 from engine.bazi_engine import calculate_professional_bazi
-from tools.wuxing_calculator import calculate_wuxing_power, GAN_TO_ELEMENT, ZHI_HIDDEN_STEMS, ZHI_HIDDEN_WEIGHTS
-from tools.geju_analyzer import analyze_geju, SHISHEN_MAP
+from tools.wuxing_calculator import calculate_wuxing_power
+from tools.geju_analyzer import analyze_geju
 
 cases = [
-    ("1990-05-20 10:30 Male",   datetime(1990, 5, 20, 10, 30, 0), "M"),
-    ("1985-01-15 03:00 Female", datetime(1985, 1, 15, 3, 0, 0),   "F"),
-    ("2000-08-08 12:00 Male",   datetime(2000, 8, 8, 12, 0, 0),   "M"),
-    ("1976-12-25 22:00 Male",   datetime(1976, 12, 25, 22, 0, 0), "M"),
-    ("1995-06-01 06:00 Female", datetime(1995, 6, 1, 6, 0, 0),    "F"),
+    ("1990-05-20 10:30 Male",   datetime(1990, 5, 20, 10, 30, 0), "ä¹¾é€  (Male)"),
+    ("1985-01-15 03:00 Female", datetime(1985, 1, 15, 3, 0, 0),   "å¤é€  (Female)"),
+    ("2000-08-08 12:00 Male",   datetime(2000, 8, 8, 12, 0, 0),   "ä¹¾é€  (Male)"),
+    ("1976-12-25 22:00 Male",   datetime(1976, 12, 25, 22, 0, 0), "ä¹¾é€  (Male)"),
+    ("1995-06-01 06:00 Female", datetime(1995, 6, 1, 6, 0, 0),    "å¤é€  (Female)"),
 ]
 
-for label, dt, g in cases:
-    gender = "M" if g == "M" else "F"
-    gender_str = "M" if g == "M" else "F"
+for label, dt, gender_str in cases:
     bazi = calculate_professional_bazi(dt, gender_str)
     pillars = bazi["pillars"]
     dm = bazi["day_master"]
@@ -24,11 +23,11 @@ for label, dt, g in cases:
     gj = json.loads(analyze_geju(bazi))
     print(f"=== {label} ===")
     print(f"  pillars: {pillars}  dm: {dm}  dishi: {dishi}")
-    print(f"  power: {wx['power']}")
-    print(f"  strong: {wx['strong']}  weak: {wx['weak']}")
-    print(f"  geju: {gj['¸ñ¾ÖÃû³Æ']}  type: {gj['¸ñ¾ÖÀàĞÍ']}  strength: {gj['ÈÕÖ÷Ç¿Èõ']}  ratio: {gj['ÈÕÖ÷Á¦Á¿Õ¼±È']}")
-    print(f"  tougan: {gj.get('Í¸¸ÉÎ»ÖÃ','')}  is_tougan: {gj['ÔÂ¸ÉÍ¸¸É']}")
-    for k in ["³å","ºÏ","ĞÌ","º¦","ÆÆ","ÈıºÏ","Èı»á","°ëÈıºÏ"]:
+    print(f"  power: {wx.get('power', {})}")
+    print(f"  strong: {wx.get('strong', [])}  weak: {wx.get('weak', [])}")
+    print(f"  geju: {gj.get('æ ¼å±€', '')}  type: {gj.get('ç±»å‹', '')}  strength: {gj.get('æ—¥ä¸»å¼ºå¼±', '')}  ratio: {gj.get('äº”è¡Œå æ¯”', '')}")
+    print(f"  tougan: {gj.get('é€å¹²ä½ç½®', '')}  is_tougan: {gj.get('æœˆå¹²é€å¹²', '')}")
+    for k in ["å†²", "åˆ", "åˆ‘", "å®³", "ç ´", "ä¸‰åˆ", "ä¸‰ä¼š", "åŠä¸‰åˆ"]:
         v = xc.get(k, [])
         if v:
             print(f"  {k}: {v}")
