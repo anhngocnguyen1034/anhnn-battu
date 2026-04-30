@@ -125,23 +125,78 @@ def render_wuxing_chart(wuxing):
     return fig
 
 
-def _get_api_key():
-    if hasattr(st, "secrets") and st.secrets.get("DASHSCOPE_API_KEY"):
-        return st.secrets["DASHSCOPE_API_KEY"]
-    return os.environ.get("DASHSCOPE_API_KEY", "")
+PROVIDER_PRESETS = {
+    "阿里云百炼": {
+        "base_url": "https://coding.dashscope.aliyuncs.com/v1",
+        "models": ["qwen3.5-plus", "qwen3-coder-plus", "qwen-plus", "qwen-max"],
+        "env_key": "DASHSCOPE_API_KEY",
+    },
+    "OpenAI": {
+        "base_url": "https://api.openai.com/v1",
+        "models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+        "env_key": "OPENAI_API_KEY",
+    },
+    "Anthropic (兼容)": {
+        "base_url": "https://api.anthropic.com/v1",
+        "models": ["claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+        "env_key": "ANTHROPIC_API_KEY",
+    },
+    "MiMo": {
+        "base_url": "https://token-plan-cn.xiaomimimo.com/anthropic",
+        "models": ["mimo-v2.5-pro"],
+        "env_key": "ANTHROPIC_AUTH_TOKEN",
+    },
+    "自定义 (Custom)": {
+        "base_url": "",
+        "models": [],
+        "env_key": "",
+    },
+}
+
+
+def _get_default_api_key(env_key: str) -> str:
+    if env_key and hasattr(st, "secrets") and st.secrets.get(env_key):
+        return st.secrets[env_key]
+    if env_key:
+        return os.environ.get(env_key, "")
+    return ""
 
 
 st.markdown("<h1>玄冥 | <span class='chinese-serif'>命理架构终端</span></h1>", unsafe_allow_html=True)
 st.markdown("秉持传统数术严谨，重构当代命运图谱。")
 
-BASE_URL = "https://coding.dashscope.aliyuncs.com/v1"
-
 with st.sidebar:
-    st.header("🔑 ALIYUN CODING PLAN")
-    st.info("百炼专区: 顶级推理模型支持 Function Calling")
-    api_key_input = st.text_input("AUTH KEY", type="password", value=_get_api_key() or "", placeholder="或设置 DASHSCOPE_API_KEY / secrets")
-    api_key = api_key_input.strip() or _get_api_key()
-    selected_model = st.selectbox("LLM MODEL", ["qwen3.5-plus", "qwen3-coder-plus"])
+    st.header("⚙️ 模型配置 (MODEL CONFIG)")
+
+    provider = st.selectbox("服务商 (Provider)", list(PROVIDER_PRESETS.keys()), index=0)
+    preset = PROVIDER_PRESETS[provider]
+
+    if provider == "自定义 (Custom)":
+        base_url = st.text_input("API Base URL", placeholder="https://your-api.com/v1")
+        custom_model = st.text_input("模型名称 (Model)", placeholder="gpt-4o")
+        selected_model = custom_model
+        env_key = st.text_input("环境变量名 (可选)", placeholder="MY_API_KEY")
+    else:
+        base_url = preset["base_url"]
+        selected_model = st.selectbox("模型 (Model)", preset["models"])
+        env_key = preset["env_key"]
+
+    default_key = _get_default_api_key(env_key)
+    api_key = st.text_input(
+        "API Key",
+        type="password",
+        value=default_key or "",
+        placeholder=f"输入 Key 或设置环境变量 {env_key}",
+    )
+    api_key = api_key.strip() or default_key
+
+    if provider != "自定义 (Custom)":
+        with st.expander("高级设置"):
+            base_url = st.text_input("Base URL (可修改)", value=base_url)
+            custom_model_override = st.text_input("模型名 (留空用上方选择)", placeholder="留空则使用下拉选择")
+            if custom_model_override.strip():
+                selected_model = custom_model_override.strip()
+
     st.markdown("---")
     st.header("📜 四柱排盘 (BAZI INPUT)")
     gender = st.radio("系统性别", ["乾造 (Male)", "坤造 (Female)"])
@@ -165,7 +220,7 @@ with st.sidebar:
 
             if api_key:
                 try:
-                    client = OpenAI(api_key=api_key, base_url=BASE_URL)
+                    client = OpenAI(api_key=api_key, base_url=base_url)
                     resp = client.chat.completions.create(
                         model=selected_model,
                         messages=st.session_state['messages'],
@@ -176,9 +231,9 @@ with st.sidebar:
                         st.session_state['messages'].append({"role": "assistant", "content": greeting})
                         st.session_state['chat_history'].append({"role": "assistant", "content": greeting})
                 except Exception as e:
-                    st.error(f"连接阿里云百炼失败: {e}")
+                    st.error(f"API 调用失败: {e}")
             else:
-                st.warning("未配置 AUTH KEY，请填写或设置 DASHSCOPE_API_KEY。")
+                st.warning(f"未配置 API Key，请在侧边栏填写或设置环境变量 {env_key}。")
 
 if 'bazi_data' in st.session_state:
     bzi = st.session_state['bazi_data']
@@ -227,10 +282,10 @@ if 'bazi_data' in st.session_state:
             with st.chat_message("assistant"):
                 message_placeholder = st.empty()
                 if not api_key:
-                    message_placeholder.markdown("请先在侧边栏配置 AUTH KEY。")
+                    message_placeholder.markdown("请先在侧边栏配置 API Key。")
                 else:
                     try:
-                        client = OpenAI(api_key=api_key, base_url=BASE_URL)
+                        client = OpenAI(api_key=api_key, base_url=base_url)
                         messages_for_api = get_messages_for_api(st.session_state['messages'])
                         final_content, updated_messages, fact_check_results = run_react_loop(
                             client,
