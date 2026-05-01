@@ -32,7 +32,7 @@ def _normalize_chart_data(chart_data: Dict[str, Any]) -> Dict[str, Any]:
     If already in flat format (has 'pillars' at top level), pass through.
     """
     if not chart_data:
-        return chart_data
+        return {}
 
     # Already flat engine format — pass through.
     if chart_data.get("pillars") and isinstance(chart_data["pillars"], list):
@@ -45,8 +45,10 @@ def _normalize_chart_data(chart_data: Dict[str, Any]) -> Dict[str, Any]:
         return chart_data
 
     # Check if chart has nested pillar objects (frontend format).
+    # Detect by presence of either "stem" or "branch" in any pillar dict.
     has_nested = any(
-        isinstance(chart.get(k), dict) and "stem" in (chart.get(k) or {})
+        isinstance(chart.get(k), dict)
+        and ("stem" in (chart.get(k) or {}) or "branch" in (chart.get(k) or {}))
         for k in ("year_pillar", "month_pillar", "day_pillar", "hour_pillar")
     )
     if not has_nested:

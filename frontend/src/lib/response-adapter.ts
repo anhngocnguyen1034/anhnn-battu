@@ -332,6 +332,7 @@ export function adaptChartResponse(response: BackendChartResponse): BaziReading 
     favorable_elements,
     unfavorable_elements,
     summary,
+    gender: raw.gender,
     pillar_annotations: pillarAnnotations,
     wuxing_power,
     dayun,

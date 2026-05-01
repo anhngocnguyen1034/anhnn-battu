@@ -83,7 +83,7 @@ def analyze_wuxing_balance(bazi_data: Dict[str, Any]) -> str:
     total = sum(vals)
     strong = [k for k, v in wuxing.items() if v >= 2]
     weak = [k for k, v in wuxing.items() if v == 0]
-    balanced = 1 <= max(vals) - min(vals) <= 1 and total > 0
+    balanced = (max(vals) - min(vals) <= 1) and total > 0
     return json.dumps({
         "wuxing": wuxing,
         "total": total,

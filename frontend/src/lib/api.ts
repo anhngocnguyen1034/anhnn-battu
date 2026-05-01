@@ -73,6 +73,26 @@ export async function calculateBazi(input: BaziInput): Promise<BaziReading> {
 // ── AI Chat / Analysis ──────────────────────────────────────────────
 
 /**
+ * Map frontend AIProviderId values to backend-recognized provider names.
+ *
+ * The backend api_adapter.py uses these names to select the correct SDK:
+ *   - Names in ANTHROPIC_PROVIDERS → Anthropic SDK
+ *   - Everything else → OpenAI SDK (works for OpenAI-compatible APIs)
+ *
+ * Frontend IDs like "alibaba", "deepseek" are OpenAI-compatible, so they
+ * map to "OpenAI". "mimo" maps to "MiMo" for the Anthropic code path.
+ * "anthropic" maps to a recognized Anthropic provider name.
+ */
+const PROVIDER_NAME_MAP: Record<string, string> = {
+  alibaba: "OpenAI",
+  openai: "OpenAI",
+  anthropic: "Anthropic (兼容)",
+  mimo: "MiMo",
+  deepseek: "OpenAI",
+  custom: "OpenAI",
+};
+
+/**
  * Stream a chat response via SSE (Server-Sent Events) using fetch + ReadableStream.
  * The backend exposes POST /api/v1/chat/stream which returns an SSE stream.
  *
@@ -103,9 +123,13 @@ export async function chatStream(
   signal?: AbortSignal
 ): Promise<void> {
   // Transform frontend ChatStreamRequest → backend ChatRequest shape.
+  // Map the frontend provider ID to a backend-recognized name.
+  const mappedProvider =
+    PROVIDER_NAME_MAP[params.provider.provider] ?? params.provider.provider;
+
   const backendBody = {
     message: params.message,
-    provider: params.provider.provider,
+    provider: mappedProvider,
     api_key: params.provider.api_key,
     base_url: params.provider.base_url ?? "https://api.openai.com/v1",
     model: params.provider.model,

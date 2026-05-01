@@ -115,6 +115,8 @@ export interface BaziReading {
   favorable_elements: string[];
   unfavorable_elements: string[];
   summary: string;
+  /** Gender label from the backend (e.g. "乾造 (Male)" or "坤造 (Female)"). */
+  gender?: string;
 
   // ── Extended fields from POST /api/v1/chart ──────────────────
   /** Per-pillar annotations keyed by "year" | "month" | "day" | "hour". */
