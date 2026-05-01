@@ -243,6 +243,29 @@ def extract_ganzhi_from_text(text: str) -> List[tuple]:
     return out
 
 
+def rag_retrieve(bazi_data: Dict[str, Any], query: str = "", top_k: int = 5) -> str:
+    """
+    基于RAG的古籍检索。根据八字数据和用户问题检索相关古籍条目。
+
+    Args:
+        bazi_data: 八字命盘数据
+        query: 用户问题（可选，用于语义检索）
+        top_k: 返回结果数量
+
+    Returns:
+        JSON格式的检索结果
+    """
+    try:
+        # Deferred import to avoid circular dependency
+        import sys
+        sys.path.insert(0, 'C:/Users/Gaaiyun/Projects/FOR-BAZI/.worktrees/feature-rag')
+        from agent.scholar_agent import scholar_agent
+        results = scholar_agent.retrieve_knowledge(bazi_data, query)
+        return results
+    except Exception as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+
+
 TOOL_SCHEMAS = [
     {
         "type": "function",
@@ -389,6 +412,20 @@ TOOL_SCHEMAS = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "rag_retrieve",
+            "description": "基于RAG的古籍检索。根据八字数据和用户问题检索穷通宝鉴、滴天髓、子平真诠、三命通会等相关古籍条目，支持精确匹配和语义搜索。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "用户问题（可选）"},
+                    "top_k": {"type": "integer", "description": "返回结果数量，默认5", "default": 5}
+                },
+            },
+        },
+    },
 ]
 
 TOOL_REGISTRY = {
@@ -405,6 +442,7 @@ TOOL_REGISTRY = {
     "query_classical_text": query_classical_text_tool,
     "calculate_wuxing_power": calculate_wuxing_power,
     "analyze_geju": analyze_geju,
+    "rag_retrieve": rag_retrieve,
 }
 
 
@@ -444,6 +482,8 @@ def dispatch_tool(name: str, arguments: Dict[str, Any], bazi_data: Dict[str, Any
                 arguments.get("category", ""),
                 arguments.get("key", ""),
             )
+        if name == "rag_retrieve":
+            return fn(bazi_data, arguments.get("query", ""), arguments.get("top_k", 5))
         return json.dumps({"error": "未实现的工具分支"}, ensure_ascii=False)
     except Exception as e:
         return json.dumps({"error": str(e), "tool": name}, ensure_ascii=False)
