@@ -26,6 +26,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.config import settings
 from backend.api.chart import router as chart_router
@@ -87,10 +88,25 @@ async def health_check() -> dict:
     return {"status": "ok"}
 
 
+# -- Frontend static files ------------------------------------------------
+# Serve the React frontend from backend so that http://127.0.0.1:8000/
+# shows the actual app (not just API docs).
+
+_FRONTEND_DIST = _PROJECT_ROOT / "frontend" / "dist"
+
+
 @app.get("/", include_in_schema=False)
 async def root():
-    """根路径重定向到 API 文档。"""
+    """Serve the React frontend, or redirect to API docs if not available."""
+    index_html = _FRONTEND_DIST / "index.html"
+    if index_html.exists():
+        return HTMLResponse(index_html.read_text(encoding="utf-8"))
     return RedirectResponse(url="/docs")
+
+
+# Mount frontend static assets AFTER all API routes so /api/v1/* takes priority
+if _FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIST / "assets")), name="frontend-assets")
 
 
 # -- Direct execution -----------------------------------------------------
