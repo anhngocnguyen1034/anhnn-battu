@@ -172,13 +172,9 @@ export async function chatStream(
 
           switch (eventType) {
             case "token":
-              // Strip surrounding quotes if the backend sends them.
               try {
-                onToken(
-                  eventData.startsWith('"') && eventData.endsWith('"')
-                    ? JSON.parse(eventData)
-                    : eventData
-                );
+                const tokenParsed = JSON.parse(eventData);
+                onToken(typeof tokenParsed === "string" ? tokenParsed : (tokenParsed.content ?? eventData));
               } catch {
                 onToken(eventData);
               }
@@ -186,11 +182,8 @@ export async function chatStream(
 
             case "status":
               try {
-                onStatus(
-                  eventData.startsWith('"') && eventData.endsWith('"')
-                    ? JSON.parse(eventData)
-                    : eventData
-                );
+                const statusParsed = JSON.parse(eventData);
+                onStatus(typeof statusParsed === "string" ? statusParsed : (statusParsed.message ?? eventData));
               } catch {
                 onStatus(eventData);
               }
