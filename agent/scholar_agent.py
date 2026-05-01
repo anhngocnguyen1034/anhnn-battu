@@ -13,13 +13,14 @@ class ScholarAgent:
         self.text_service = text_service
         self.rag_service = rag_service
 
-    def retrieve_knowledge(self, chart_data: Dict[str, Any], question: str = "") -> str:
+    def retrieve_knowledge(self, chart_data: Dict[str, Any], question: str = "", top_k: int = 5) -> str:
         """
         检索相关古籍知识
 
         Args:
             chart_data: 八字数据（含day_master, pillars等）
             question: 用户问题（用于RAG检索）
+            top_k: RAG检索返回的结果数量
 
         Returns:
             JSON格式的检索结果
@@ -37,7 +38,7 @@ class ScholarAgent:
         # 2. RAG语义检索
         if question:
             try:
-                rag_results = self.rag_service.retrieve(question, chart_data, top_k=5)
+                rag_results = self.rag_service.retrieve(question, chart_data, top_k=top_k)
                 results["rag_matches"] = rag_results
             except Exception as e:
                 results["rag_matches"] = [{"error": str(e)}]
