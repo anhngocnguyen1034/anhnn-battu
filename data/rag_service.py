@@ -53,7 +53,8 @@ class RAGService:
         # 清空现有索引
         try:
             self._collection.delete(where={})
-        except:
+        except Exception as e:
+            # Collection might be empty, log and continue
             pass
 
         # 遍历所有古籍

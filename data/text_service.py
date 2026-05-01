@@ -85,7 +85,7 @@ class TextService:
         try:
             with open(index_path, "r", encoding="utf-8") as f:
                 return json.load(f).get("texts", [])
-        except:
+        except Exception:
             return []
 
 # 全局单例
