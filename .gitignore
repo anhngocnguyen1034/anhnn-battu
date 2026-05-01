@@ -1,4 +1,4 @@
-# Python
+# ── Python ──────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -8,24 +8,60 @@ __pycache__/
 venv/
 ENV/
 env/
+*.egg-info/
+dist/
+build/
+*.whl
 
-# Streamlit
+# ── Node / Frontend ────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# ── Tauri / Rust ───────────────────────────────────────────────────────
+frontend/src-tauri/target/
+*.exe
+*.msi
+*.dmg
+*.AppImage
+
+# ── Streamlit ──────────────────────────────────────────────────────────
 .streamlit/secrets.toml
 
-# IDE / OS
+# ── IDE / OS ───────────────────────────────────────────────────────────
 .idea/
 .vscode/
 *.swp
 *.swo
 .DS_Store
+Thumbs.db
 
-# Testing / coverage
+# ── Testing / Coverage ────────────────────────────────────────────────
 .coverage
 htmlcov/
 .pytest_cache/
 *.cover
+playwright-report/
+test-results/
 
-# Misc
-*.pem
+# ── Environment / Secrets ─────────────────────────────────────────────
 .env
 .env.*
+*.pem
+*.key
+
+# ── Build artifacts ────────────────────────────────────────────────────
+*.exe
+*.msi
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+
+# ── Privacy ──────────────────────────────────────────────────────────
+docs/user-chart-analysis.md
+
+# ── Misc ───────────────────────────────────────────────────────────────
+*.log
+.DS_Store

@@ -6,12 +6,12 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from openai import OpenAI
 
 from engine import calculate_professional_bazi
 from prompts import build_system_prompt
 from tools import TOOL_SCHEMAS, dispatch_tool
 from agent import get_messages_for_api, run_react_loop, run_react_loop_streaming
+from agent.api_adapter import create_client, call_api, is_anthropic_provider
 
 st.set_page_config(
     page_title="玄冥 | MING MATRIX",
@@ -22,6 +22,7 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;700&display=swap');
     :root {
         --bg-color: #0d1117;
         --panel-bg: rgba(22, 27, 34, 0.6);
@@ -273,6 +274,13 @@ PROVIDER_PRESETS = {
 
 def _get_default_api_key(env_key: str) -> str:
     if env_key:
+        # Check URL query params first (for testing / automation)
+        try:
+            qp = st.query_params
+            if env_key in qp:
+                return qp[env_key]
+        except Exception:
+            pass
         try:
             if st.secrets.get(env_key):
                 return st.secrets[env_key]
@@ -316,9 +324,7 @@ with st.sidebar:
             custom_model_override = st.text_input("模型名 (留空用上方选择)", placeholder="留空则使用下拉选择")
             if custom_model_override.strip():
                 selected_model = custom_model_override.strip()
-            enable_streaming = st.toggle("流式输出 (Streaming)", value=True, help="实时逐字显示回答；若 API 不稳定可关闭。")
-    else:
-        enable_streaming = True
+    enable_streaming = st.toggle("流式输出 (Streaming)", value=True, help="实时逐字显示回答；若 API 不稳定可关闭。")
 
     st.markdown("---")
     st.header("📜 四柱排盘 (BAZI INPUT)")
@@ -342,77 +348,85 @@ with st.sidebar:
             st.session_state['chat_history'] = []
 
             if api_key:
+                st.session_state.pop('api_key_missing', None)
                 try:
-                    client = OpenAI(api_key=api_key, base_url=base_url)
-                    resp = client.chat.completions.create(
-                        model=selected_model,
-                        messages=st.session_state['messages'],
-                        temperature=0.6,
+                    client_info = create_client(provider, api_key, base_url)
+                    # Include a user prompt for the greeting (Anthropic API requires at least one user message)
+                    greeting_messages = st.session_state['messages'] + [
+                        {"role": "user", "content": "请用一句话问候来者，并简要介绍这个命盘的核心特征。"}
+                    ]
+                    result = call_api(
+                        client_info, selected_model,
+                        greeting_messages,
+                        temperature=0.6, max_tokens=1024,
                     )
-                    greeting = (resp.choices[0].message.content or "").strip()
+                    greeting = result["content"]
                     if greeting:
                         st.session_state['messages'].append({"role": "assistant", "content": greeting})
                         st.session_state['chat_history'].append({"role": "assistant", "content": greeting})
                 except Exception as e:
                     st.error(f"API 调用失败: {e}")
             else:
-                st.warning(f"未配置 API Key，请在侧边栏填写或设置环境变量 {env_key}。")
+                st.session_state['api_key_missing'] = env_key
 
 if 'bazi_data' in st.session_state:
     bzi = st.session_state['bazi_data']
+    if 'api_key_missing' in st.session_state:
+        st.warning(f"未配置 API Key，请在侧边栏填写或设置环境变量 {st.session_state['api_key_missing']}。")
     col_matrix, col_chat = st.columns([1, 1.2])
 
     with col_matrix:
         st.markdown("<h3><span class='chinese-serif'>命盘矩阵</span> (MING MATRIX)</h3>", unsafe_allow_html=True)
-        tab_origin, tab_dayun, tab_geju, tab_wuxing = st.tabs(
-            ["原局排盘", "大运流年", "格局神煞", "五行精算"]
-        )
 
-        # ── Tab 1: 原局排盘 ─────────────────────────────────────────────────
-        with tab_origin:
-            cols = st.columns(4)
-            labels = ["年柱 (祖业)", "月柱 (机缘)", "日柱 (本我)", "时柱 (晚成)"]
-            dishi_list = bzi.get("dishi", ["", "", "", ""])
-            xunkong_list = bzi.get("xunkong", ["", "", "", ""])
-            for i, col in enumerate(cols):
-                with col:
-                    gan_ch = bzi['pillars'][i][0]
-                    zhi_ch = bzi['pillars'][i][1]
-                    dishi_val = dishi_list[i] if i < len(dishi_list) else ""
-                    xunkong_val = xunkong_list[i] if i < len(xunkong_list) else ""
-                    dishi_html = f'<div class="dishi-label">{dishi_val}</div>' if dishi_val else ""
-                    xunkong_html = f'<div class="xunkong-label">旬空: {xunkong_val}</div>' if xunkong_val else ""
-                    st.markdown(f"""
-                    <div class="bazi-pillar">
-                        <div class="pillar-header">{labels[i]}</div>
-                        <div class="god-gan">{bzi['tg_gan'][i]}</div>
-                        <div class="gan">{colored_char(gan_ch)}</div>
-                        <div class="zhi">{colored_char(zhi_ch)}</div>
-                        <div class="nayin">{bzi['nayin'][i]}</div>
-                        <div class="god-zhi">藏干: {bzi['tg_zhi'][i]}</div>
-                        <div class="shensha">{bzi['shensha'][i]}</div>
-                        {dishi_html}
-                        {xunkong_html}
-                    </div>
-                    """, unsafe_allow_html=True)
-            st.markdown("<br/>", unsafe_allow_html=True)
-            cols_bottom = st.columns([1, 1.2])
-            with cols_bottom[0]:
-                shengong = bzi.get("shengong", "")
-                taixi = bzi.get("taixi", "")
-                extra_info = f"**命宫**: {bzi['minggong']} &nbsp;|&nbsp; **胎元**: {bzi['taiyuan']}"
-                if shengong:
-                    extra_info += f" &nbsp;|&nbsp; **身宫**: {shengong}"
-                if taixi:
-                    extra_info += f" &nbsp;|&nbsp; **胎息**: {taixi}"
-                st.markdown(extra_info, unsafe_allow_html=True)
-                st.plotly_chart(render_wuxing_chart(bzi['wuxing']), use_container_width=True)
-            with cols_bottom[1]:
-                st.markdown("**大运概览**")
-                for d in bzi['dayun']:
-                    st.markdown(f"`{d['start_year']} (起于{d['start_age']}岁) -> {d['ganzhi']}`")
+        # ── 四柱排盘（始终可见）────────────────────────────────────────────
+        cols = st.columns(4)
+        labels = ["年柱 (祖业)", "月柱 (机缘)", "日柱 (本我)", "时柱 (晚成)"]
+        dishi_list = bzi.get("dishi", ["", "", "", ""])
+        xunkong_list = bzi.get("xunkong", ["", "", "", ""])
+        for i, col in enumerate(cols):
+            with col:
+                gan_ch = bzi['pillars'][i][0]
+                zhi_ch = bzi['pillars'][i][1]
+                dishi_val = dishi_list[i] if i < len(dishi_list) else ""
+                xunkong_val = xunkong_list[i] if i < len(xunkong_list) else ""
+                dishi_html = f'<div class="dishi-label">{dishi_val}</div>' if dishi_val else ""
+                xunkong_html = f'<div class="xunkong-label">旬空: {xunkong_val}</div>' if xunkong_val else ""
+                st.markdown(f"""
+                <div class="bazi-pillar">
+                    <div class="pillar-header">{labels[i]}</div>
+                    <div class="god-gan">{bzi['tg_gan'][i]}</div>
+                    <div class="gan">{colored_char(gan_ch)}</div>
+                    <div class="zhi">{colored_char(zhi_ch)}</div>
+                    <div class="nayin">{bzi['nayin'][i]}</div>
+                    <div class="god-zhi">藏干: {bzi['tg_zhi'][i]}</div>
+                    <div class="shensha">{bzi['shensha'][i]}</div>
+                    {dishi_html}
+                    {xunkong_html}
+                </div>
+                """, unsafe_allow_html=True)
 
-        # ── Tab 2: 大运流年 ─────────────────────────────────────────────────
+        # ── 命宫/胎元/身宫/胎息 + 五行雷达图 ─────────────────────────────
+        st.markdown("<br/>", unsafe_allow_html=True)
+        cols_bottom = st.columns([1, 1.2])
+        with cols_bottom[0]:
+            shengong = bzi.get("shengong", "")
+            taixi = bzi.get("taixi", "")
+            extra_info = f"**命宫**: {bzi['minggong']} &nbsp;|&nbsp; **胎元**: {bzi['taiyuan']}"
+            if shengong:
+                extra_info += f" &nbsp;|&nbsp; **身宫**: {shengong}"
+            if taixi:
+                extra_info += f" &nbsp;|&nbsp; **胎息**: {taixi}"
+            st.markdown(extra_info, unsafe_allow_html=True)
+            st.plotly_chart(render_wuxing_chart(bzi['wuxing']), width="stretch")
+        with cols_bottom[1]:
+            st.markdown("**大运概览**")
+            for d in bzi['dayun']:
+                st.markdown(f"`{d['start_year']} (起于{d['start_age']}岁) -> {d['ganzhi']}`")
+
+        # ── 详细分析标签页 ──────────────────────────────────────────────
+        tab_dayun, tab_geju, tab_wuxing = st.tabs(["大运流年", "格局神煞", "五行精算"])
+
+        # ── Tab 1: 大运流年 ─────────────────────────────────────────────────
         with tab_dayun:
             st.markdown("#### 后天大运轨迹 (Luck Pillars)")
             dayun = bzi.get("dayun", [])
@@ -432,7 +446,7 @@ if 'bazi_data' in st.session_state:
                 st.markdown("<br/>", unsafe_allow_html=True)
                 fig_dayun = _render_dayun_timeline(bzi)
                 if fig_dayun:
-                    st.plotly_chart(fig_dayun, use_container_width=True)
+                    st.plotly_chart(fig_dayun, width="stretch")
             else:
                 st.info("暂无大运数据。")
 
@@ -514,7 +528,7 @@ if 'bazi_data' in st.session_state:
 
             st.markdown("<br/>", unsafe_allow_html=True)
             fig_bar = _render_wuxing_bar_chart(bzi)
-            st.plotly_chart(fig_bar, use_container_width=True)
+            st.plotly_chart(fig_bar, width="stretch")
 
     with col_chat:
         st.markdown("<h3><span class='chinese-serif'>命理论道</span> (ORACLE ENGINE)</h3>", unsafe_allow_html=True)
@@ -535,11 +549,10 @@ if 'bazi_data' in st.session_state:
                     message_placeholder.markdown("请先在侧边栏配置 API Key。")
                 else:
                     try:
-                        client = OpenAI(api_key=api_key, base_url=base_url)
+                        client_info = create_client(provider, api_key, base_url)
                         original_count = len(st.session_state['messages'])
                         messages_for_api = get_messages_for_api(
                             st.session_state['messages'],
-                            client=client,
                         )
                         if len(messages_for_api) < original_count:
                             st.caption("📜 此前对话已摘要保存，上下文已优化。")
@@ -549,7 +562,7 @@ if 'bazi_data' in st.session_state:
                             accumulated = ""
                             status_box = None
                             gen = run_react_loop_streaming(
-                                client,
+                                client_info,
                                 selected_model,
                                 messages_for_api,
                                 TOOL_SCHEMAS,
@@ -584,7 +597,7 @@ if 'bazi_data' in st.session_state:
                             # --- Non-streaming fallback ---
                             with st.spinner("正在推算..."):
                                 final_content, updated_messages, fact_check_results = run_react_loop(
-                                    client,
+                                    client_info,
                                     selected_model,
                                     messages_for_api,
                                     TOOL_SCHEMAS,
