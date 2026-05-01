@@ -257,8 +257,11 @@ def rag_retrieve(bazi_data: Dict[str, Any], query: str = "", top_k: int = 5) -> 
     """
     try:
         # Deferred import to avoid circular dependency
+        import os
         import sys
-        sys.path.insert(0, 'C:/Users/Gaaiyun/Projects/FOR-BAZI/.worktrees/feature-rag')
+        # Get project root (2 levels up from tools/bazi_tools.py -> project root)
+        _project_root = os.path.dirname(os.path.dirname(__file__))
+        sys.path.insert(0, _project_root)
         from agent.scholar_agent import scholar_agent
         results = scholar_agent.retrieve_knowledge(bazi_data, query)
         return results
