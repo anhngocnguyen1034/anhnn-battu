@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
+    # -- AI Provider (MiniMax) --
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = "https://api.minimaxi.com/v1"
+    OPENAI_MODEL: str = "MiniMax-M2.7"
+
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_BASE_URL: str = "https://api.minimaxi.com/anthropic"
+
 
 # Singleton — import ``settings`` wherever needed.
 settings = Settings()
