@@ -13,9 +13,21 @@ import type {
 } from "@/types/bazi";
 import { adaptChartResponse } from "@/lib/response-adapter";
 
-/** Base Axios instance – proxied to backend via Vite dev-server. */
+/**
+ * In Tauri production, the frontend is bundled as static files and has no
+ * Vite proxy. We detect this and point API calls directly at the backend.
+ * In dev mode (localhost:5173) the Vite proxy handles /api → localhost:8000.
+ */
+const isTauri = "__TAURI_INTERNALS__" in window;
+
+const API_BASE = isTauri ? "http://127.0.0.1:8000/api" : "/api";
+const HEALTH_BASE = isTauri ? "http://127.0.0.1:8000/health" : "/health";
+const CHAT_STREAM_URL = isTauri
+  ? "http://127.0.0.1:8000/api/v1/chat/stream"
+  : "/api/v1/chat/stream";
+
 const client: AxiosInstance = axios.create({
-  baseURL: "/api",
+  baseURL: API_BASE,
   timeout: 30_000,
   headers: {
     "Content-Type": "application/json",
@@ -107,7 +119,7 @@ export async function chatStream(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const response = await fetch("/api/v1/chat/stream", {
+      const response = await fetch(CHAT_STREAM_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(backendBody),
@@ -326,7 +338,7 @@ export async function checkCompatibility(
 export async function healthCheck(): Promise<{ status: string }> {
   // The health endpoint is at root level, not under /api/v1.
   // We bypass the base client to hit /health directly.
-  const { data } = await axios.get<{ status: string }>("/health");
+  const { data } = await axios.get<{ status: string }>(HEALTH_BASE);
   return data;
 }
 
