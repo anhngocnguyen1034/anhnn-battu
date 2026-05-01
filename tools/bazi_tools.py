@@ -263,7 +263,7 @@ def rag_retrieve(bazi_data: Dict[str, Any], query: str = "", top_k: int = 5) -> 
         _project_root = os.path.dirname(os.path.dirname(__file__))
         sys.path.insert(0, _project_root)
         from agent.scholar_agent import scholar_agent
-        results = scholar_agent.retrieve_knowledge(bazi_data, query)
+        results = scholar_agent.retrieve_knowledge(bazi_data, query, top_k)
         return results
     except Exception as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
