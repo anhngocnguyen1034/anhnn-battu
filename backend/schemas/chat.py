@@ -43,6 +43,7 @@ class ChatRequest(BaseModel):
     )
     history: Optional[List[Dict[str, str]]] = Field(
         default=None,
+        max_length=50,
         description="对话历史 [{role, content}, ...]",
     )
     max_steps: int = Field(

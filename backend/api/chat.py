@@ -48,7 +48,7 @@ async def post_chat_stream(req: ChatRequest):
 
     async def event_generator():
         """Async wrapper around the sync agent generator."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def _run_stream():
             """Run the sync generator in a thread."""

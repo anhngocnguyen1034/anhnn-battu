@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -36,6 +37,7 @@ def _cache_key(dt_str: str, gender: str) -> str:
 # Simple dict-based LRU-ish cache (avoids unbounded growth).
 _chart_cache: Dict[str, Dict[str, Any]] = {}
 _CACHE_MAX = 256
+_cache_lock = threading.Lock()
 
 
 def calculate_chart(datetime_str: str, gender: str) -> Dict[str, Any]:
@@ -53,9 +55,10 @@ def calculate_chart(datetime_str: str, gender: str) -> Dict[str, Any]:
         ValueError: If *datetime_str* cannot be parsed.
     """
     key = _cache_key(datetime_str, gender)
-    if key in _chart_cache:
-        logger.debug("Cache hit for %s", key)
-        return _chart_cache[key]
+    with _cache_lock:
+        if key in _chart_cache:
+            logger.debug("Cache hit for %s", key)
+            return _chart_cache[key]
 
     # Parse datetime
     try:
@@ -76,7 +79,7 @@ def calculate_chart(datetime_str: str, gender: str) -> Dict[str, Any]:
     try:
         wuxing_raw = calculate_wuxing_power(chart_data)
         wuxing_power = json.loads(wuxing_raw) if isinstance(wuxing_raw, str) else wuxing_raw
-    except Exception:
+    except (KeyError, ValueError, TypeError):
         logger.warning("wuxing_power calculation failed", exc_info=True)
         wuxing_power = None
 
@@ -84,7 +87,7 @@ def calculate_chart(datetime_str: str, gender: str) -> Dict[str, Any]:
     try:
         geju_raw = analyze_geju(chart_data)
         geju = json.loads(geju_raw) if isinstance(geju_raw, str) else geju_raw
-    except Exception:
+    except (KeyError, ValueError, TypeError):
         logger.warning("geju analysis failed", exc_info=True)
         geju = None
 
@@ -95,10 +98,11 @@ def calculate_chart(datetime_str: str, gender: str) -> Dict[str, Any]:
     }
 
     # Evict oldest if cache is full
-    if len(_chart_cache) >= _CACHE_MAX:
-        oldest_key = next(iter(_chart_cache))
-        del _chart_cache[oldest_key]
-    _chart_cache[key] = result
+    with _cache_lock:
+        if len(_chart_cache) >= _CACHE_MAX:
+            oldest_key = next(iter(_chart_cache))
+            del _chart_cache[oldest_key]
+        _chart_cache[key] = result
 
     return result
 
@@ -120,13 +124,13 @@ def get_chart_from_data(chart_data: Dict[str, Any]) -> Dict[str, Any]:
     try:
         wuxing_raw = calculate_wuxing_power(chart_data)
         wuxing_power = json.loads(wuxing_raw) if isinstance(wuxing_raw, str) else wuxing_raw
-    except Exception:
+    except (KeyError, ValueError, TypeError):
         wuxing_power = None
 
     try:
         geju_raw = analyze_geju(chart_data)
         geju = json.loads(geju_raw) if isinstance(geju_raw, str) else geju_raw
-    except Exception:
+    except (KeyError, ValueError, TypeError):
         geju = None
 
     return {"wuxing_power": wuxing_power, "geju": geju}
