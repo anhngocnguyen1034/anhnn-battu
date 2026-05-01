@@ -21,21 +21,20 @@ class ChatRequest(BaseModel):
     )
     provider: str = Field(
         default="OpenAI",
-        description="AI 服务商名称，如 'OpenAI' 或 'MiMo'",
-        examples=["OpenAI"],
+        description="AI 服务商名称：OpenAI (MiniMax) | GLM (智谱)",
+        examples=["OpenAI", "GLM"],
     )
     api_key: str = Field(
-        ...,
-        description="API 密钥",
+        default="",
+        description="API 密钥（可从配置文件自动填充）",
     )
     base_url: str = Field(
-        default="https://api.openai.com/v1",
-        description="API 基础 URL",
+        default="",
+        description="API 基础 URL（可从配置文件自动填充）",
     )
     model: str = Field(
-        default="gpt-4o",
-        description="模型名称",
-        examples=["gpt-4o"],
+        default="",
+        description="模型名称（可从配置文件自动填充）",
     )
     chart_data: Optional[Dict[str, Any]] = Field(
         default=None,

@@ -17,6 +17,7 @@ from agent.api_adapter import create_client
 from agent.react_agent import run_react_loop_streaming
 from prompts.system_prompts import build_system_prompt
 from tools.bazi_tools import TOOL_SCHEMAS, dispatch_tool
+from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,17 @@ def stream_chat(
         ``(event_type: str, data: Any)``
     """
     chart_data = chart_data or {}
+
+    # 从配置文件自动填充缺失的 API 参数
+    if not api_key or not base_url or not model:
+        if provider in ("GLM", "Zhipu"):
+            api_key = api_key or settings.ANTHROPIC_API_KEY
+            base_url = base_url or settings.ANTHROPIC_BASE_URL
+            model = model or "glm-5.1"
+        else:
+            api_key = api_key or settings.OPENAI_API_KEY
+            base_url = base_url or settings.OPENAI_BASE_URL
+            model = model or settings.OPENAI_MODEL
 
     # Build system prompt from chart data
     try:

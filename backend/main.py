@@ -25,6 +25,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse, HTMLResponse
 
 from backend.config import settings
 from backend.api.chart import router as chart_router
@@ -84,6 +85,12 @@ async def health_check() -> dict:
     Liveness probe.  Returns ``{"status": "ok"}`` when the server is running.
     """
     return {"status": "ok"}
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    """根路径重定向到 API 文档。"""
+    return RedirectResponse(url="/docs")
 
 
 # -- Direct execution -----------------------------------------------------

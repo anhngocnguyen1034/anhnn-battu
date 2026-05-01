@@ -244,6 +244,16 @@ def _render_dayun_timeline(bzi):
 
 
 PROVIDER_PRESETS = {
+    "MiniMax": {
+        "base_url": "https://api.minimaxi.com/v1",
+        "models": ["MiniMax-M2.7", "MiniMax-Text-01", "MiniMax-M1"],
+        "env_key": "BAZI_OPENAI_API_KEY",
+    },
+    "智谱 GLM": {
+        "base_url": "https://open.bigmodel.cn/api/anthropic",
+        "models": ["glm-5.1", "glm-4.7", "glm-4.5-air"],
+        "env_key": "BAZI_ANTHROPIC_API_KEY",
+    },
     "阿里云百炼": {
         "base_url": "https://coding.dashscope.aliyuncs.com/v1",
         "models": ["qwen3.5-plus", "qwen3-coder-plus", "qwen-plus", "qwen-max"],

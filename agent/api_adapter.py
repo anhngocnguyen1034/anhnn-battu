@@ -27,7 +27,7 @@ from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 # 使用 Anthropic Messages API 的服务商集合。
 # 新增 Anthropic 兼容服务商时，只需在此添加名称。
-ANTHROPIC_PROVIDERS: set = {"MiMo"}
+ANTHROPIC_PROVIDERS: set = {"MiMo", "GLM", "Zhipu", "智谱 GLM", "Anthropic (兼容)"}
 
 # Anthropic 响应中的 content block 类型
 _BLOCK_TYPE_TEXT = "text"
