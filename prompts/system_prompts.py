@@ -35,6 +35,7 @@ TOOL_GUIDANCE = """
 - `query_ziping_guidance`：查询《子平真诠》格局论法（基于命盘日主与月令）
 - `query_sanming_guidance`：查询《三命通会》宫位六亲、大运流年（需指定 key）
 - `query_classical_text`：通用古籍查询（支持穷通宝鉴/滴天髓/子平真诠/三命通会/渊海子平，可按分类和关键词筛选）
+- `rag_retrieve`：基于RAG的古籍检索，返回精确匹配和语义搜索结果。当用户问题涉及多个古籍或需要广泛检索时使用。
 
 **其他工具**：
 - 解释刑冲合害时可用 `query_xing_chong_he_hai`，解释神煞时可用 `explain_shensha`。

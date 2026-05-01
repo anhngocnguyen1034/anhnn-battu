@@ -71,3 +71,6 @@ _temp_research/
 
 # ── Git worktrees ──────────────────────────────────────────────
 .worktrees/
+
+# ── RAG vector database ────────────────────────────────────────
+data/chroma_db/
