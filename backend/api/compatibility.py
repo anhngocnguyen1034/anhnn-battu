@@ -12,7 +12,7 @@ import logging
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from backend.schemas.common import BaziChartData
 from backend.services.bazi_service import calculate_chart
@@ -37,6 +37,13 @@ class ChartInput(BaseModel):
         ...,
         description="性别：'乾造 (Male)' 或 '坤造 (Female)'",
     )
+
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, v: str) -> str:
+        if v not in ("乾造 (Male)", "坤造 (Female)"):
+            raise ValueError("gender must be '乾造 (Male)' or '坤造 (Female)'")
+        return v
 
 
 class CompatibilityRequest(BaseModel):

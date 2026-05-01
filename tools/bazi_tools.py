@@ -42,26 +42,33 @@ def get_dayun_stage(bazi_data: Dict[str, Any], current_year: int) -> str:
     根据命盘与大运列表，判定当前年份所处的大运阶段（第几步、干支、起止年龄/年份）。
     """
     dayun = bazi_data.get("dayun") or []
+    # Find the *last* da-yun whose start_year <= current_year,
+    # i.e. the currently active stage.
+    matched = None
     for i, dy in enumerate(dayun):
         start_year = dy.get("start_year")
-        start_age = dy.get("start_age", 0)
         if start_year is None:
             continue
-        step = i + 1
         if current_year >= start_year:
-            next_dy = dayun[i + 1] if i + 1 < len(dayun) else None
-            end_year = next_dy.get("start_year") - 1 if next_dy else None
-            end_age = next_dy.get("start_age", start_age + 10) - 1 if next_dy else start_age + 9
-            return json.dumps({
-                "current_year": current_year,
-                "step": step,
-                "ganzhi": dy.get("ganzhi", ""),
-                "start_year": start_year,
-                "start_age": start_age,
-                "end_year": end_year,
-                "end_age": end_age,
-                "context": f"当前{current_year}年处于第{step}步大运「{dy.get('ganzhi', '')}」，起于{start_year}年（{start_age}岁）。"
-            }, ensure_ascii=False)
+            matched = (i, dy)
+    if matched is not None:
+        i, dy = matched
+        start_year = dy.get("start_year")
+        start_age = dy.get("start_age", 0)
+        step = i + 1
+        next_dy = dayun[i + 1] if i + 1 < len(dayun) else None
+        end_year = next_dy.get("start_year") - 1 if next_dy else None
+        end_age = next_dy.get("start_age", start_age + 10) - 1 if next_dy else start_age + 9
+        return json.dumps({
+            "current_year": current_year,
+            "step": step,
+            "ganzhi": dy.get("ganzhi", ""),
+            "start_year": start_year,
+            "start_age": start_age,
+            "end_year": end_year,
+            "end_age": end_age,
+            "context": f"当前{current_year}年处于第{step}步大运「{dy.get('ganzhi', '')}」，起于{start_year}年（{start_age}岁）。"
+        }, ensure_ascii=False)
     return json.dumps({"current_year": current_year, "step": None, "context": "未找到对应大运。"}, ensure_ascii=False)
 
 
