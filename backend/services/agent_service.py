@@ -22,6 +22,118 @@ from backend.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _normalize_chart_data(chart_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert frontend BaziReading format to flat backend engine format.
+
+    The frontend sends nested BaziReading objects (chart.year_pillar, etc.)
+    while the backend tools and system prompt expect flat fields (pillars,
+    tg_zhi, day_master, gender, minggong, etc.).
+
+    If already in flat format (has 'pillars' at top level), pass through.
+    """
+    if not chart_data:
+        return chart_data
+
+    # Already flat engine format — pass through.
+    if chart_data.get("pillars") and isinstance(chart_data["pillars"], list):
+        return chart_data
+
+    # Detect frontend BaziReading format: has nested 'chart' with pillar objects.
+    chart = chart_data.get("chart")
+    if not chart or not isinstance(chart, dict):
+        # No nested chart — maybe already partial flat, return as-is.
+        return chart_data
+
+    # Check if chart has nested pillar objects (frontend format).
+    has_nested = any(
+        isinstance(chart.get(k), dict) and "stem" in (chart.get(k) or {})
+        for k in ("year_pillar", "month_pillar", "day_pillar", "hour_pillar")
+    )
+    if not has_nested:
+        return chart_data
+
+    flat: Dict[str, Any] = {}
+
+    # Reconstruct pillars, tg_zhi, nayin from nested pillar objects.
+    pillars: list = []
+    tg_zhi: list = []
+    nayin_list: list = []
+    tg_gan: list = []
+    for key in ("year_pillar", "month_pillar", "day_pillar", "hour_pillar"):
+        p = chart.get(key, {})
+        stem = (p or {}).get("stem", "")
+        branch = (p or {}).get("branch", "")
+        pillars.append(f"{stem}{branch}" if stem and branch else "")
+        hidden = (p or {}).get("hidden_stems", [])
+        tg_zhi.append("".join(hidden) if hidden else "")
+        nayin_list.append((p or {}).get("nayin", "") or "")
+    flat["pillars"] = pillars
+    flat["tg_zhi"] = tg_zhi
+    flat["nayin"] = nayin_list
+
+    # Ten gods from pillar_annotations.
+    annotations = chart_data.get("pillar_annotations") or {}
+    if annotations:
+        flat["tg_gan"] = [
+            (annotations.get(k) or {}).get("ten_god_gan", "")
+            for k in ("year", "month", "day", "hour")
+        ]
+        flat["tg_zhi"] = [
+            (annotations.get(k) or {}).get("ten_god_zhi", "")
+            for k in ("year", "month", "day", "hour")
+        ]
+        flat["dishi"] = [
+            (annotations.get(k) or {}).get("dishi", "")
+            for k in ("year", "month", "day", "hour")
+        ]
+        flat["xunkong"] = [
+            (annotations.get(k) or {}).get("xunkong", "")
+            for k in ("year", "month", "day", "hour")
+        ]
+        flat["shensha_detail"] = {
+            k: (annotations.get(k) or {}).get("shensha", [])
+            for k in ("year", "month", "day", "hour")
+        }
+
+    # Day master.
+    flat["day_master"] = chart.get("day_master", "")
+
+    # Gender — may not be in BaziReading, try to infer or leave empty.
+    flat["gender"] = chart_data.get("gender") or chart.get("gender", "")
+
+    # Ming gong / tai yuan (frontend uses underscores).
+    flat["minggong"] = chart_data.get("ming_gong") or chart_data.get("minggong") or chart.get("minggong", "")
+    flat["taiyuan"] = chart_data.get("tai_yuan") or chart_data.get("taiyuan") or chart.get("taiyuan", "")
+    flat["shengong"] = chart_data.get("shen_gong") or chart_data.get("shengong") or chart.get("shengong", "")
+    flat["taixi"] = chart_data.get("tai_xi") or chart_data.get("taixi") or chart.get("taixi", "")
+
+    # Wuxing / element balance.
+    eb = chart_data.get("element_balance")
+    if eb and isinstance(eb, dict):
+        flat["wuxing"] = eb
+    elif chart.get("wuxing"):
+        flat["wuxing"] = chart["wuxing"]
+
+    # Xingchong.
+    flat["xingchong"] = chart_data.get("xingchong") or chart.get("xingchong") or {}
+
+    # All shensha (flat list).
+    all_shensha = chart_data.get("all_shensha") or []
+    if all_shensha:
+        flat["shensha"] = [s.get("name", "") for s in all_shensha if isinstance(s, dict)]
+
+    # Dayun — already in compatible format.
+    flat["dayun"] = chart_data.get("dayun") or chart.get("dayun") or []
+
+    # Wuxing power & geju.
+    if chart_data.get("wuxing_power"):
+        flat["wuxing_power"] = chart_data["wuxing_power"]
+    if chart_data.get("geju"):
+        flat["geju"] = chart_data["geju"]
+
+    return flat
+
+
 def stream_chat(
     *,
     message: str,
@@ -58,9 +170,7 @@ def stream_chat(
     Yields:
         ``(event_type: str, data: Any)``
     """
-    chart_data = chart_data or {}
-
-    # 从配置文件自动填充缺失的 API 参数
+    chart_data = _normalize_chart_data(chart_data or {})
     if not api_key or not base_url or not model:
         if provider in ("GLM", "Zhipu"):
             api_key = api_key or settings.ANTHROPIC_API_KEY
