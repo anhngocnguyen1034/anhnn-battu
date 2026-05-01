@@ -9,7 +9,13 @@ from typing import Any, Dict, List
 
 from lunar_python import Solar
 
-from prompts.ancient_texts import get_qiongtong_for_tool
+from prompts.ancient_texts import (
+    get_qiongtong_for_tool,
+    get_disitian_for_tool,
+    get_ziping_for_tool,
+    get_sanming_for_tool,
+    query_classical_text as _query_classical_text,
+)
 from .wuxing_calculator import calculate_wuxing_power
 from .geju_analyzer import analyze_geju
 
@@ -184,6 +190,47 @@ def query_qiongtong_guidance(bazi_data: Dict[str, Any]) -> str:
     return json.dumps(result, ensure_ascii=False)
 
 
+def query_disitian_guidance(bazi_data: Dict[str, Any]) -> str:
+    """查询《滴天髓》理法，基于命盘日主与月令。"""
+    pillars = bazi_data.get("pillars") or []
+    day_master = (bazi_data.get("day_master") or "").strip()
+    month_zhi = pillars[1][1] if len(pillars) > 1 and len(pillars[1]) >= 2 else ""
+    result = get_disitian_for_tool(day_master, month_zhi)
+    return json.dumps(result, ensure_ascii=False)
+
+
+def query_ziping_guidance(bazi_data: Dict[str, Any]) -> str:
+    """查询《子平真诠》格局论法，基于命盘日主与月令。"""
+    pillars = bazi_data.get("pillars") or []
+    day_master = (bazi_data.get("day_master") or "").strip()
+    month_zhi = pillars[1][1] if len(pillars) > 1 and len(pillars[1]) >= 2 else ""
+    result = get_ziping_for_tool(day_master, month_zhi)
+    return json.dumps(result, ensure_ascii=False)
+
+
+def query_sanming_guidance(bazi_data: Dict[str, Any], category: str = "", key: str = "") -> str:
+    """查询《三命通会》相关条目。"""
+    result = get_sanming_for_tool(category, key)
+    return json.dumps(result, ensure_ascii=False)
+
+
+def query_classical_text_tool(source: str, category: str = "", key: str = "") -> str:
+    """
+    通用古籍查询工具。
+    source: 古籍名（穷通宝鉴/滴天髓/子平真诠/三命通会/渊海子平）
+    category: 分类筛选（可选）
+    key: 键名筛选（可选）
+    """
+    results = _query_classical_text(source, category, key)
+    return json.dumps({
+        "source": source,
+        "category": category,
+        "key": key,
+        "count": len(results),
+        "results": results[:10],  # Limit to 10 results
+    }, ensure_ascii=False)
+
+
 def extract_ganzhi_from_text(text: str) -> List[tuple]:
     """
     从文本中提取「年份 + 干支」组合，用于批量 fact-check。
@@ -282,6 +329,53 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "query_disitian_guidance",
+            "description": "查询《滴天髓》理法条文。根据命盘日主返回十干体性、用神、配合等理法原文与解析。",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_ziping_guidance",
+            "description": "查询《子平真诠》格局论法。根据命盘日主与月令返回格局判定、成格条件、喜忌等。",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_sanming_guidance",
+            "description": "查询《三命通会》相关条目，包括宫位六亲、大运流年、强弱判断等。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {"type": "string", "description": "分类：宫位/六亲/运年/强弱"},
+                    "key": {"type": "string", "description": "键名：年柱/月柱/日柱/时柱/父母/配偶/子女等"},
+                },
+                "required": ["key"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_classical_text",
+            "description": "通用古籍查询。可查询穷通宝鉴、滴天髓、子平真诠、三命通会、渊海子平等古籍内容。支持按分类和关键词筛选。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "source": {"type": "string", "description": "古籍名：穷通宝鉴/滴天髓/子平真诠/三命通会/渊海子平"},
+                    "category": {"type": "string", "description": "分类筛选（可选）：调候用神/十干体性/格局/宫位/六亲等"},
+                    "key": {"type": "string", "description": "键名筛选（可选）：日主名/格局名/宫位名等"},
+                },
+                "required": ["source"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "calculate_wuxing_power",
             "description": "五行力量精算：考虑藏干、月令、十二长生的权重，返回各五行力量占比（0-100）及偏旺/偏弱判断。",
             "parameters": {"type": "object", "properties": {}},
@@ -305,6 +399,10 @@ TOOL_REGISTRY = {
     "explain_shensha": explain_shensha,
     "fact_check_ganzhi": fact_check_ganzhi,
     "query_qiongtong_guidance": query_qiongtong_guidance,
+    "query_disitian_guidance": query_disitian_guidance,
+    "query_ziping_guidance": query_ziping_guidance,
+    "query_sanming_guidance": query_sanming_guidance,
+    "query_classical_text": query_classical_text_tool,
     "calculate_wuxing_power": calculate_wuxing_power,
     "analyze_geju": analyze_geju,
 }
@@ -335,8 +433,17 @@ def dispatch_tool(name: str, arguments: Dict[str, Any], bazi_data: Dict[str, Any
                 arguments.get("claimed_ganzhi", ""),
                 arguments.get("year", 0),
             )
-        if name in ("query_qiongtong_guidance", "calculate_wuxing_power", "analyze_geju"):
+        if name in ("query_qiongtong_guidance", "query_disitian_guidance", "query_ziping_guidance",
+                     "calculate_wuxing_power", "analyze_geju"):
             return fn(bazi_data)
+        if name == "query_sanming_guidance":
+            return fn(bazi_data, arguments.get("category", ""), arguments.get("key", ""))
+        if name == "query_classical_text":
+            return fn(
+                arguments.get("source", ""),
+                arguments.get("category", ""),
+                arguments.get("key", ""),
+            )
         return json.dumps({"error": "未实现的工具分支"}, ensure_ascii=False)
     except Exception as e:
         return json.dumps({"error": str(e), "tool": name}, ensure_ascii=False)
