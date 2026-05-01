@@ -68,3 +68,6 @@ docs/user-chart-analysis.md
 
 # ── Temp research ──────────────────────────────────────────────
 _temp_research/
+
+# ── Git worktrees ──────────────────────────────────────────────
+.worktrees/
