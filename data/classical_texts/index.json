@@ -1,0 +1,56 @@
+{
+  "version": "2.0",
+  "last_updated": "2026-05-01",
+  "texts": [
+    {
+      "id": "qiongtong_baojian",
+      "name": "穷通宝鉴",
+      "author": "余春台编",
+      "dynasty": "清",
+      "description": "论十天干逐月调候用神",
+      "file": "qiongtong_baojian.json",
+      "categories": [
+        "调候用神"
+      ]
+    },
+    {
+      "id": "di_tian_sui",
+      "name": "滴天髓",
+      "author": "京图（传）/ 任铁樵注",
+      "dynasty": "宋/清",
+      "description": "八字命理核心理法",
+      "file": "di_tian_sui.json",
+      "categories": [
+        "十干体性",
+        "理法"
+      ]
+    },
+    {
+      "id": "ziping_zhenquan",
+      "name": "子平真诠",
+      "author": "沈孝瞻",
+      "dynasty": "清",
+      "description": "格局取用，格局成败论吉凶",
+      "file": "ziping_zhenquan.json",
+      "categories": [
+        "格局",
+        "用神",
+        "月令"
+      ]
+    },
+    {
+      "id": "sanming_tonghui",
+      "name": "三命通会",
+      "author": "万民英",
+      "dynasty": "明",
+      "description": "宫位六亲、大运流年、强弱判断",
+      "file": "sanming_tonghui.json",
+      "categories": [
+        "宫位",
+        "六亲",
+        "运年",
+        "强弱"
+      ]
+    }
+  ]
+}
