@@ -7,167 +7,306 @@
   <img src="https://img.shields.io/badge/React-18-61dafb?logo=react" alt="React">
   <img src="https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi" alt="FastAPI">
   <img src="https://img.shields.io/badge/Tauri-v2-ffc131?logo=tauri" alt="Tauri">
+  <img src="https://img.shields.io/badge/Tests-452%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
+</p>
+
+<p align="center">
+  <a href="#快速开始">快速开始</a> · <a href="docs/ARCHITECTURE.md">架构文档</a> · <a href="docs/API.md">API 文档</a> · <a href="docs/DEPLOYMENT.md">部署指南</a>
 </p>
 
 ---
 
-## 项目简介
-
-FOR-BAZI 是一套完整的八字命理分析系统，融合传统命理学与现代 AI 技术，提供：
-
-- **精准排盘** — 基于 lunar-python 的四柱八字计算，含藏干、纳音、十二长生
-- **五行精算** — 天干地支加权分析，雷达图 + 柱状图可视化
-- **格局判定** — 建禄、从格、专旺等格局自动识别
-- **大运流年** — 十年大运 + 流年干支，交互式时间轴
-- **神煞分析** — 天乙贵人、将星、驿马等 20+ 神煞自动标注
-- **AI 对话** — 基于 ReAct Agent 的流式命理咨询，支持多模型切换
-- **十神详解** — 十神关系映射与性格特征分析
-- **合婚匹配** — 双命盘五行关系 + 地支交互分析
-- **古籍参考** — 经典命理文献检索
-- **娱乐功能** — 每日运势、生肖问答
-
 ## 系统架构
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Tauri v2 Shell (Rust, 3-10MB EXE)            │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │           React 18 + Vite + TypeScript                    │  │
-│  │  ┌─────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐  │  │
-│  │  │ 10 Pages│ │ ECharts  │ │ Zustand  │ │ shadcn/ui    │  │  │
-│  │  │ (Lazy)  │ │ (Radar/  │ │ (Persist │ │ + Tailwind   │  │  │
-│  │  │         │ │  Bar/    │ │  Store)  │ │ CSS Vars     │  │  │
-│  │  │         │ │  Line)   │ │          │ │              │  │  │
-│  │  └─────────┘ └──────────┘ └──────────┘ └──────────────┘  │  │
-│  └───────────────────────┬───────────────────────────────────┘  │
-│                          │ SSE Streaming                         │
-│  ┌───────────────────────▼───────────────────────────────────┐  │
-│  │              FastAPI Backend (Python)                      │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌─────────────┐  │  │
-│  │  │ /chart   │ │ /chat/   │ │ /texts   │ │ /compati-   │  │  │
-│  │  │          │ │ stream   │ │          │ │ bility      │  │  │
-│  │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └──────┬──────┘  │  │
-│  └───────┼────────────┼────────────┼───────────────┼─────────┘  │
-│          │            │            │               │             │
-│  ┌───────▼────────────▼────────────▼───────────────▼─────────┐  │
-│  │              Python Engine Layer (Unchanged)               │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌─────────────┐  │  │
-│  │  │ bazi_    │ │ wuxing_  │ │ geju_    │ │ react_      │  │  │
-│  │  │ engine   │ │ calculator│ │ analyzer │ │ agent       │  │  │
-│  │  └──────────┘ └──────────┘ └──────────┘ └─────────────┘  │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐                  │  │
-│  │  │ shensha  │ │ ancient_ │ │ api_     │                  │  │
-│  │  │          │ │ texts    │ │ adapter  │                  │  │
-│  │  └──────────┘ └──────────┘ └──────────┘                  │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Desktop["Tauri v2 Desktop"]
+        WebView["WebView2<br/>React 18 SPA"]
+    end
+
+    subgraph Browser["Web Browser"]
+        SPA["React SPA<br/>localhost:5173"]
+    end
+
+    subgraph Backend["FastAPI Backend :8000"]
+        API["API Routes<br/>/api/v1/*"]
+        CORS["CORS Middleware"]
+        Static["Static Files<br/>frontend/dist/"]
+    end
+
+    subgraph Engine["Python Engine"]
+        BaziEngine["bazi_engine.py<br/>四柱计算"]
+        Shensha["shensha.py<br/>神煞判定"]
+        WuxingCalc["wuxing_calculator.py<br/>五行精算"]
+        GejuAnalyzer["geju_analyzer.py<br/>格局判定"]
+    end
+
+    subgraph Agent["ReAct Agent"]
+        ReactLoop["react_agent.py<br/>推理循环"]
+        ApiAdapter["api_adapter.py<br/>API 适配"]
+        Tools["14 Tools<br/>bazi_tools.py"]
+        PromptEngine["system_prompts.py<br/>提示词引擎"]
+    end
+
+    subgraph Data["Data Layer"]
+        JSON["Classical Texts<br/>5 JSON files"]
+        Chroma["ChromaDB<br/>RAG Vector DB"]
+    end
+
+    subgraph LLM["AI Models"]
+        OpenAI["OpenAI<br/>GPT-4o"]
+        Anthropic["Anthropic<br/>Claude"]
+        MiniMax["MiniMax<br/>M2.7"]
+        GLM["智谱 GLM<br/>glm-5.1"]
+        DeepSeek["DeepSeek"]
+    end
+
+    Desktop -->|SSE / HTTP| API
+    Browser -->|Vite Proxy| API
+    API --> CORS
+    API --> BaziEngine
+    API --> ReactLoop
+    API --> Static
+    BaziEngine --> Shensha
+    BaziEngine --> WuxingCalc
+    BaziEngine --> GejuAnalyzer
+    ReactLoop --> Tools
+    ReactLoop --> ApiAdapter
+    ReactLoop --> PromptEngine
+    PromptEngine --> JSON
+    Tools --> Chroma
+    ApiAdapter --> OpenAI
+    ApiAdapter --> Anthropic
+    ApiAdapter --> MiniMax
+    ApiAdapter --> GLM
+    ApiAdapter --> DeepSeek
 ```
 
-## 目录结构
+## 核心数据流
+
+### 排盘计算流程
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant F as React 前端
+    participant B as FastAPI 后端
+    participant E as bazi_engine
+    participant W as wuxing_calculator
+    participant G as geju_analyzer
+
+    U->>F: 输入出生日期/时间/性别
+    F->>B: POST /api/v1/chart
+    B->>E: calculate_professional_bazi(dt, gender)
+    E-->>B: flat chart data (pillars, tg_gan, tg_zhi, nayin, ...)
+    B->>W: calculate_wuxing_power(chart)
+    W-->>B: wuxing_power (strong/weak/balanced)
+    B->>G: analyze_geju(chart)
+    G-->>B: geju (格局类型, 日主强弱, ...)
+    B-->>F: {chart, wuxing_power, geju}
+    F->>F: adaptChartResponse() → BaziReading
+    F->>U: 命盘可视化展示
+```
+
+### AI 对话流程
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant F as React 前端
+    participant B as FastAPI 后端
+    participant N as _normalize_chart_data
+    participant A as ReAct Agent
+    participant T as 14 Tools
+    participant LLM as AI Model
+
+    U->>F: 提问（如：分析我的格局）
+    F->>F: 构建 ChatStreamRequest
+    Note over F: bazi_context = BaziReading<br/>provider → PROVIDER_NAME_MAP
+    F->>B: POST /api/v1/chat/stream (SSE)
+    B->>N: normalize(BaziReading → flat)
+    N-->>B: flat chart data
+    B->>A: stream_chat(chart_data, message)
+    A->>A: build_system_prompt(chart_data)
+    loop ReAct Loop (max 8 steps)
+        A->>LLM: messages + tools schema
+        LLM-->>A: tool_calls or text
+        alt Tool Call
+            A->>T: dispatch_tool(name, args, bazi_data)
+            T-->>A: tool result
+            A-->>F: SSE event: status/tool_call
+        else Final Answer
+            A-->>F: SSE event: token (streaming)
+        end
+    end
+    A-->>F: SSE event: done
+    F->>U: Markdown 渲染展示
+```
+
+## 项目结构
+
+```mermaid
+graph LR
+    subgraph Frontend["frontend/src/"]
+        Pages["10 Pages<br/>Lazy-loaded"]
+        Components["Components<br/>bazi · chat · layout · ui"]
+        Stores["Zustand Stores<br/>bazi · chat · settings"]
+        Hooks["Hooks<br/>useChatSSE"]
+        Lib["Lib<br/>api · adapter · wuxing"]
+        Types["Types<br/>bazi.ts"]
+    end
+
+    subgraph Backend["backend/"]
+        API_Routes["api/<br/>chart · chat · texts<br/>compatibility · entertainment"]
+        Schemas["schemas/<br/>chart · chat · common"]
+        Services["services/<br/>bazi · agent · text"]
+        Config["config.py<br/>Pydantic Settings"]
+    end
+
+    subgraph Core["Python Core"]
+        Engine["engine/<br/>bazi_engine · shensha"]
+        Tools["tools/<br/>bazi_tools · wuxing · geju"]
+        Agent["agent/<br/>react_agent · api_adapter<br/>scholar_agent"]
+        Prompts["prompts/<br/>system_prompts · ancient_texts"]
+    end
+
+    subgraph DataLayer["data/"]
+        Texts["classical_texts/<br/>5 JSON files"]
+        RAG["chroma_db/<br/>RAG Vector DB"]
+        RAGService["rag_service.py"]
+    end
+
+    subgraph Tests["tests/ - 452 tests"]
+        T1["test_backend_api"]
+        T2["test_engine_comprehensive"]
+        T3["test_tools_comprehensive"]
+        T4["test_agent_service"]
+        T5["test_api_comprehensive"]
+        T6["test_chart_data_adapter"]
+    end
+```
+
+<details>
+<summary>完整目录树</summary>
 
 ```
 FOR-BAZI/
 ├── engine/                    # 核心命理引擎
 │   ├── bazi_engine.py         # 四柱八字计算（基于 lunar-python）
-│   └── shensha.py             # 神煞判定
+│   └── shensha.py             # 神煞判定（20+ 神煞）
 │
-├── tools/                     # 分析工具
+├── tools/                     # 分析工具（14 个 Agent 工具）
+│   ├── bazi_tools.py          # Agent 可调用工具集
 │   ├── wuxing_calculator.py   # 五行力量精算
-│   ├── geju_analyzer.py       # 格局判定
-│   └── bazi_tools.py          # Agent 可调用工具集
+│   └── geju_analyzer.py       # 格局判定
 │
 ├── agent/                     # AI Agent 层
-│   ├── react_agent.py         # ReAct 循环（Thought→Action→Observation→Answer）
-│   ├── api_adapter.py         # 统一 OpenAI/Anthropic API 适配
+│   ├── react_agent.py         # ReAct 推理循环
+│   ├── api_adapter.py         # OpenAI/Anthropic API 适配
+│   ├── scholar_agent.py       # RAG 学术 Agent
 │   └── context_manager.py     # 上下文管理
 │
 ├── prompts/                   # 提示词模板
-│   ├── system_prompts.py      # 系统提示词
+│   ├── system_prompts.py      # 系统提示词（玄冥人设）
 │   └── ancient_texts.py       # 古籍文献数据库
 │
-├── backend/                   # FastAPI 后端（新增）
-│   ├── main.py                # 应用入口，路由注册，CORS
-│   ├── config.py              # Pydantic Settings 配置
-│   ├── api/                   # API 路由
-│   │   ├── chart.py           # POST /api/v1/chart
-│   │   ├── chat.py            # POST /api/v1/chat/stream (SSE)
-│   │   ├── texts.py           # GET  /api/v1/texts
-│   │   ├── compatibility.py   # POST /api/v1/compatibility
-│   │   └── entertainment.py   # GET  /api/v1/entertainment/daily-fortune
+├── backend/                   # FastAPI 后端
+│   ├── main.py                # 应用入口
+│   ├── config.py              # Pydantic Settings
+│   ├── api/                   # 5 个路由模块
 │   ├── schemas/               # Pydantic 数据模型
-│   │   ├── common.py          # 共享模型（BaziChartData, WuxingPowerData）
-│   │   ├── chart.py           # ChartRequest / ChartResponse
-│   │   └── chat.py            # ChatRequest / ChatSSEEvent
 │   └── services/              # 业务逻辑层
-│       ├── bazi_service.py    # 排盘服务（256条LRU缓存）
-│       ├── agent_service.py   # Agent 流式服务
-│       └── text_service.py    # 古籍检索服务
 │
-├── frontend/                  # React 前端（新增）
+├── frontend/                  # React + Tauri 前端
 │   ├── src/
-│   │   ├── App.tsx            # 路由配置（lazy-loaded）
-│   │   ├── main.tsx           # 入口
-│   │   ├── index.css          # Tailwind + shadcn 暗色主题
-│   │   ├── components/
-│   │   │   ├── bazi/          # 命盘组件
-│   │   │   │   ├── PillarCard.tsx      # 单柱卡片（玻璃态）
-│   │   │   │   ├── FourPillarGrid.tsx  # 四柱网格
-│   │   │   │   ├── WuxingRadar.tsx     # 五行雷达图（ECharts）
-│   │   │   │   ├── WuxingBar.tsx       # 五行柱状图（ECharts）
-│   │   │   │   └── DayunTimeline.tsx   # 大运时间轴（ECharts）
-│   │   │   ├── chat/          # AI 对话组件
-│   │   │   │   ├── ChatPanel.tsx       # 对话面板
-│   │   │   │   ├── ChatMessage.tsx     # 消息气泡（Markdown）
-│   │   │   │   ├── ChatInput.tsx       # 输入框（自动伸缩）
-│   │   │   │   └── ToolCallStatus.tsx  # 工具调用状态
-│   │   │   ├── layout/        # 布局组件
-│   │   │   │   ├── AppShell.tsx        # 侧边栏 + 主内容
-│   │   │   │   └── Sidebar.tsx         # 导航侧边栏
-│   │   │   └── ui/            # shadcn/ui 组件（13个）
-│   │   ├── pages/             # 页面组件（10个）
-│   │   │   ├── BaziCalculator.tsx      # 排盘输入
-│   │   │   ├── ChartVisualization.tsx  # 命盘可视化
-│   │   │   ├── LuckPillars.tsx         # 大运流年
-│   │   │   ├── ElementsAnalysis.tsx    # 五行分析
-│   │   │   ├── TenGods.tsx             # 十神详解
-│   │   │   ├── ShenSha.tsx             # 神煞分析
-│   │   │   ├── AnnualForecast.tsx      # 流年运势
-│   │   │   ├── AIReading.tsx           # AI 解读
-│   │   │   ├── Chat.tsx                # AI 问事
-│   │   │   └── Settings.tsx            # 设置
-│   │   ├── stores/            # Zustand 状态管理
-│   │   │   ├── useBaziStore.ts         # 命盘数据（persist）
-│   │   │   ├── useChatStore.ts         # 对话历史（persist）
-│   │   │   └── useSettingsStore.ts     # 设置（API key, 主题）
-│   │   ├── hooks/
-│   │   │   └── useChatSSE.ts           # SSE 流式 Hook
-│   │   ├── lib/
-│   │   │   ├── api.ts                 # Axios API 客户端
-│   │   │   ├── response-adapter.ts    # 后端→前端数据适配
-│   │   │   ├── wuxing-colors.ts       # 五行配色系统
-│   │   │   └── utils.ts               # 工具函数
-│   │   └── types/
-│   │       └── bazi.ts                # TypeScript 类型定义
-│   ├── index.html
-│   ├── vite.config.ts         # Vite 配置 + API 代理
-│   ├── tailwind.config.ts
-│   ├── tsconfig.json
-│   └── package.json
+│   │   ├── pages/             # 10 个页面（Lazy-loaded）
+│   │   ├── components/        # bazi · chat · layout · ui
+│   │   ├── stores/            # Zustand 状态管理（3 个）
+│   │   ├── hooks/             # useChatSSE
+│   │   ├── lib/               # api · response-adapter · wuxing
+│   │   └── types/             # TypeScript 类型
+│   └── src-tauri/             # Tauri v2 配置
 │
+├── data/                      # 数据层
+│   ├── classical_texts/       # 5 本古籍 JSON
+│   └── chroma_db/             # RAG 向量数据库
+│
+├── tests/                     # 452 个单元测试
 ├── mcp_server/                # MCP 工具服务器
-│   ├── server.py
-│   └── README.md
-│
-├── streamlit_app.py           # Streamlit 旧版（保留作为备用）
-├── launcher.py                # 启动脚本
-├── requirements.txt           # Python 依赖（Streamlit 版）
-└── docs/                      # 文档
-    ├── ARCHITECTURE.md        # 架构详解
-    ├── API.md                 # API 接口文档
-    ├── DEPLOYMENT.md          # 部署指南
-    └── RESEARCH_IMPROVEMENTS.md  # 调研与改进记录
+├── docs/                      # 文档
+└── streamlit_app.py           # Streamlit 旧版
 ```
+
+</details>
+
+## 功能模块
+
+### AI 工具链 — 14 个专业命理工具
+
+```mermaid
+graph TD
+    subgraph Agent["ReAct Agent 玄冥"]
+        Router["dispatch_tool()"]
+    end
+
+    subgraph CoreTools["核心计算"]
+        T1["get_annual_fortune<br/>流年干支"]
+        T2["get_dayun_stage<br/>大运阶段"]
+        T3["calculate_wuxing_power<br/>五行精算"]
+        T4["analyze_wuxing_balance<br/>五行平衡"]
+        T5["analyze_geju<br/>格局判定"]
+    end
+
+    subgraph ClassicalTools["古籍查询"]
+        T6["query_qiongtong_guidance<br/>穷通宝鉴"]
+        T7["query_disitian_guidance<br/>滴天髓"]
+        T8["query_ziping_guidance<br/>子平真诠"]
+        T9["query_sanming_guidance<br/>三命通会"]
+        T10["query_classical_text<br/>通用古籍检索"]
+    end
+
+    subgraph AuxTools["辅助工具"]
+        T11["rag_retrieve<br/>RAG 语义检索"]
+        T12["query_xing_chong_he_hai<br/>刑冲合害"]
+        T13["explain_shensha<br/>神煞解释"]
+        T14["fact_check_ganzhi<br/>干支校验"]
+    end
+
+    Router --> T1 & T2 & T3 & T4 & T5
+    Router --> T6 & T7 & T8 & T9 & T10
+    Router --> T11 & T12 & T13 & T14
+```
+
+### 古典文献知识库
+
+```mermaid
+graph LR
+    subgraph Sources["5 本经典"]
+        Q["穷通宝鉴<br/>调候用神"]
+        D["滴天髓<br/>十干体性"]
+        Z["子平真诠<br/>格局论法"]
+        S["三命通会<br/>宫位六亲"]
+        Y["渊海子平<br/>命理总论"]
+    end
+
+    subgraph Storage["存储"]
+        JSON["JSON Files<br/>data/classical_texts/"]
+        Chroma["ChromaDB<br/>向量索引"]
+    end
+
+    subgraph Query["查询"]
+        Exact["精确匹配<br/>text_service"]
+        Semantic["语义检索<br/>rag_service"]
+    end
+
+    Sources --> JSON
+    JSON --> Chroma
+    JSON --> Exact
+    Chroma --> Semantic
+```
+
+---
 
 ## 快速开始
 
@@ -179,385 +318,91 @@ FOR-BAZI/
 | Node.js | 18+ | 前端构建 |
 | Rust | 1.70+ | Tauri 桌面应用（可选） |
 
-### 1. 克隆项目
+### 1. 克隆 & 安装
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/FOR-BAZI.git
+git clone https://github.com/gaaiyun/FOR-BAZI.git
 cd FOR-BAZI
-```
 
-### 2. 安装 Python 依赖
-
-```bash
-# 创建虚拟环境
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# macOS/Linux
-source .venv/bin/activate
-
-# 安装后端依赖
+# Python 依赖
 pip install -r backend/requirements.txt
+
+# 前端依赖
+cd frontend && npm install && cd ..
 ```
 
-### 3. 配置环境变量
-
-创建 `.env` 文件：
+### 2. 配置 `.env`
 
 ```env
-# AI 模型 API Key（至少配置一个）
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
+# AI 模型（至少配置一个）
+BAZI_OPENAI_API_KEY=sk-...
+BAZI_OPENAI_BASE_URL=https://api.openai.com/v1
+BAZI_OPENAI_MODEL=gpt-4o
 
-# 后端配置（可选）
-BAZI_DEBUG=false
-BAZI_HOST=0.0.0.0
-BAZI_PORT=8000
+BAZI_ANTHROPIC_API_KEY=sk-ant-...
+BAZI_ANTHROPIC_BASE_URL=https://api.anthropic.com
 ```
 
-### 4. 启动后端
+### 3. 启动
 
 ```bash
-# 方式一：直接运行
+# 后端
 python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 
-# 方式二：使用启动脚本
-python launcher.py
+# 前端（新终端）
+cd frontend && npm run dev
 ```
 
-后端启动后访问：
-- API 文档：http://localhost:8000/docs
-- ReDoc：http://localhost:8000/redoc
-- 健康检查：http://localhost:8000/health
+访问 http://localhost:5173 或 http://localhost:8000
 
-### 5. 启动前端
+### 4. 桌面 EXE（可选）
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cd frontend && npx tauri build
+# 产出：frontend/src-tauri/target/release/bundle/nsis/FOR-BAZI_2.0.0_x64-setup.exe
 ```
-
-前端启动后访问：http://localhost:5173
-
-### 6. 构建桌面应用（可选）
-
-```bash
-# 安装 Rust（如果尚未安装）
-# https://rustup.rs/
-
-# 安装 Tauri CLI
-npm install -g @tauri-apps/cli
-
-# 构建 EXE
-cd frontend
-npx tauri build
-```
-
-产出物：`frontend/src-tauri/target/release/FOR-BAZI.exe`（约 3-10MB）
-
----
-
-## 功能模块
-
-### 1. 排盘计算（Bazi Calculator）
-
-输入出生日期、时间和性别，系统自动计算：
-
-- 四柱八字（年柱、月柱、日柱、时柱）
-- 天干地支、藏干、纳音
-- 日主及其五行属性
-- 十二长生（地势）
-- 旬空
-- 命宫、胎元、身宫、胎息
-
-### 2. 命盘可视化（Chart Visualization）
-
-- 四柱卡片展示，五行配色
-- 五行雷达图 + 柱状图（ECharts）
-- 大运时间轴
-- 格局判定结果
-- 专业/基础视图切换
-
-### 3. 五行分析（Elements Analysis）
-
-- 五行力量百分比计算（含藏干权重）
-- 强弱评估（身强/身弱/从格）
-- 喜用神 / 忌神判定
-- 各元素来源柱位标注
-
-### 4. 十神分析（Ten Gods）
-
-- 四柱十神映射
-- 十神详解（比肩、劫财、食神、伤官等）
-- 性格特征分析
-
-### 5. 神煞分析（Shen Sha）
-
-- 20+ 常见神煞自动标注
-- 按柱位分组展示
-- 每个神煞附带详细解释
-
-### 6. 大运流年（Luck Pillars）
-
-- 十年大运时间轴（ECharts）
-- 流年干支逐年展示
-- 当前大运高亮
-- 流年五行与日主关系分析
-
-### 7. AI 解读（AI Reading）
-
-- 一键生成全面命理分析
-- SSE 流式输出，实时显示
-- 工具调用状态展示
-- 支持 OpenAI、Anthropic、MiMo、DeepSeek 等多模型
-
-### 8. AI 问事（Chat）
-
-- 交互式命理咨询
-- 命盘摘要侧边栏
-- Markdown 渲染
-- 对话历史持久化
-
-### 9. 合婚匹配（Compatibility）
-
-- 双命盘五行关系分析
-- 地支六合、六冲检测
-- 综合匹配度评分（0-100）
-
-### 10. 古籍参考（Classical Texts）
-
-- 经典命理文献检索
-- 按来源筛选
-- 关键词高亮
-
----
-
-## 技术栈
-
-### 前端
-
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| React | 18 | UI 框架 |
-| TypeScript | 5.x | 类型安全 |
-| Vite | 6.x | 构建工具 |
-| Tailwind CSS | 4.x | 原子化 CSS |
-| shadcn/ui | latest | UI 组件库 |
-| ECharts | 5.x | 图表可视化 |
-| Zustand | 5.x | 状态管理 |
-| React Router | 7.x | 路由 |
-| React Markdown | 9.x | Markdown 渲染 |
-| Axios | 1.x | HTTP 客户端 |
-
-### 后端
-
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| FastAPI | 0.110+ | Web 框架 |
-| uvicorn | 0.29+ | ASGI 服务器 |
-| sse-starlette | 2.0+ | SSE 流式响应 |
-| Pydantic | 2.6+ | 数据验证 |
-| lunar-python | 1.4+ | 农历/八字计算 |
-| openai | 1.14+ | OpenAI API |
-| anthropic | 0.39+ | Anthropic API |
-
-### 桌面
-
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Tauri | v2 | 桌面应用框架 |
-| Rust | 1.70+ | Tauri 后端 |
-| WebView2 | - | Windows 内置浏览器引擎 |
 
 ---
 
 ## API 接口
 
-### 计算命盘
-
-```http
-POST /api/v1/chart
-Content-Type: application/json
-
-{
-  "datetime_str": "2002-07-21 03:30",
-  "gender": "乾造 (Male)"
-}
-```
-
-### 流式对话
-
-```http
-POST /api/v1/chat/stream
-Content-Type: application/json
-
-{
-  "message": "请分析我的八字格局",
-  "provider": "OpenAI",
-  "api_key": "sk-...",
-  "base_url": "https://api.openai.com/v1",
-  "model": "gpt-4o",
-  "chart_data": { ... },
-  "history": [{"role": "user", "content": "..."}],
-  "max_steps": 8
-}
-```
-
-响应为 SSE 流，事件类型：`token`、`status`、`tool_call`、`done`、`error`
-
-### 合婚匹配
-
-```http
-POST /api/v1/compatibility
-Content-Type: application/json
-
-{
-  "person_a": {
-    "datetime_str": "2002-07-21 03:30",
-    "gender": "乾造 (Male)"
-  },
-  "person_b": {
-    "datetime_str": "2003-05-15 14:00",
-    "gender": "坤造 (Female)"
-  }
-}
-```
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/v1/chart` | POST | 八字排盘计算 |
+| `/api/v1/chat/stream` | POST | AI 流式对话（SSE） |
+| `/api/v1/compatibility` | POST | 合婚匹配 |
+| `/api/v1/texts` | GET | 古籍检索 |
+| `/api/v1/entertainment/daily-fortune` | GET | 每日运势 |
+| `/health` | GET | 健康检查 |
 
 完整 API 文档见 [docs/API.md](docs/API.md)
 
 ---
 
-## 配置说明
+## 技术栈
 
-### AI 模型配置
-
-在前端设置页面或 `.env` 文件中配置：
-
-| 环境变量 | 说明 |
-|---------|------|
-| `OPENAI_API_KEY` | OpenAI API Key |
-| `ANTHROPIC_API_KEY` | Anthropic API Key |
-| `OPENAI_BASE_URL` | 自定义 OpenAI 兼容 API 地址 |
-
-支持的模型提供商：
-- **OpenAI** — GPT-4o, GPT-4-turbo 等
-- **Anthropic** — Claude 3.5 Sonnet, Claude 3 Opus 等
-- **MiMo** — 小米 MiMo 模型
-- **DeepSeek** — DeepSeek-V2 等
-- **自定义** — 任何 OpenAI 兼容 API
-
-### 后端配置
-
-| 环境变量 | 默认值 | 说明 |
-|---------|--------|------|
-| `BAZI_DEBUG` | `false` | 调试模式 |
-| `BAZI_HOST` | `0.0.0.0` | 监听地址 |
-| `BAZI_PORT` | `8000` | 监听端口 |
-| `BAZI_CORS_ORIGINS` | `["http://localhost:5173"]` | CORS 允许源 |
-
----
-
-## 开发指南
-
-### 前端开发
-
-```bash
-cd frontend
-
-# 启动开发服务器（带热更新）
-npm run dev
-
-# 类型检查
-npx tsc --noEmit
-
-# 生产构建
-npm run build
-
-# 预览生产构建
-npm run preview
-```
-
-### 后端开发
-
-```bash
-# 启动开发服务器（带自动重载）
-python -m uvicorn backend.main:app --reload
-
-# 运行测试
-python -m pytest tests/ -v
-
-# 查看 API 文档
-open http://localhost:8000/docs
-```
-
-### 添加新页面
-
-1. 在 `frontend/src/pages/` 创建页面组件
-2. 在 `frontend/src/App.tsx` 添加路由
-3. 在 `frontend/src/components/layout/Sidebar.tsx` 添加导航项
-
-### 添加新 API 端点
-
-1. 在 `backend/api/` 创建路由文件
-2. 在 `backend/schemas/` 定义请求/响应模型
-3. 在 `backend/services/` 实现业务逻辑
-4. 在 `backend/main.py` 注册路由
+| 层 | 技术 |
+|---|---|
+| **前端** | React 18 · TypeScript · Vite 6 · Tailwind CSS 4 · shadcn/ui · ECharts 5 · Zustand 5 |
+| **后端** | FastAPI · uvicorn · sse-starlette · Pydantic 2 · lunar-python |
+| **AI** | OpenAI SDK · Anthropic SDK · ReAct Agent · RAG (ChromaDB + sentence-transformers) |
+| **桌面** | Tauri v2 · Rust · WebView2 |
+| **测试** | pytest · 452 tests · 100% 核心模块覆盖 |
 
 ---
 
 ## 配色系统
 
-项目使用五行配色系统：
-
-| 五行 | 颜色 | Hex | 用途 |
-|------|------|-----|------|
-| 金 (Metal) | 金黄 | `#d4af37` | 主色调、日主高亮 |
-| 木 (Wood) | 翠绿 | `#50c878` | 木元素、喜用神 |
-| 水 (Water) | 深蓝 | `#1e90ff` | 水元素 |
-| 火 (Fire) | 赤红 | `#e94560` | 火元素、忌神 |
-| 土 (Earth) | 土黄 | `#c9a96e` | 土元素 |
-
----
-
-## 示例命盘
-
-以 `男，2002-07-21 03:30` 为例：
-
-| 柱位 | 干支 | 纳音 | 十神 |
-|------|------|------|------|
-| 年柱 | 壬午 | 杨柳木 | 食神 |
-| 月柱 | 丁未 | 天河水 | 正官 |
-| 日柱 | 庚寅 | 松柏木 | 日主 |
-| 时柱 | 戊寅 | 城头土 | 偏印 |
-
-- **日主**: 庚金，身弱从格
-- **最旺**: 火（47.5%）
-- **最弱**: 金（3.8%）
-- **喜用神**: 金
-- **格局**: 从格
-
----
-
-## 相关项目
-
-- [lunar-python](https://github.com 6tail/lunar-python) — 农历/八字计算库
-- [8Char-Uni-App](https://github.com/rxnh86/8char-Uni-App) — 八字排盘参考
-- [china-testing/bazi](https://github.com/china-testing/bazi) — 五行/格局参考
-- [shadcn/ui](https://ui.shadcn.com/) — UI 组件库
-- [ECharts](https://echarts.apache.org/) — 图表库
-- [Tauri](https://tauri.app/) — 桌面应用框架
+| 五行 | 颜色 | Hex |
+|------|------|-----|
+| 金 (Metal) | 金黄 | `#d4af37` |
+| 木 (Wood) | 翠绿 | `#50c878` |
+| 水 (Water) | 深蓝 | `#1e90ff` |
+| 火 (Fire) | 赤红 | `#e94560` |
+| 土 (Earth) | 土黄 | `#c9a96e` |
 
 ---
 
 ## 许可证
 
 MIT License
-
----
-
-## 致谢
-
-- 感谢 [6tail/lunar-python](https://github.com/6tail/lunar-python) 提供精准的农历计算
-- 感谢 [shadcn/ui](https://ui.shadcn.com/) 提供优秀的 UI 组件
-- 感谢所有开源社区的贡献者

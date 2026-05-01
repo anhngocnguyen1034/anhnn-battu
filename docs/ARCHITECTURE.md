@@ -4,317 +4,513 @@
 
 ---
 
-## 总体架构
+## 1. 总体架构
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        用户界面层                               │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │              Tauri v2 Shell (Rust, 3-10MB)                │  │
-│  │              或 Web 浏览器                                 │  │
-│  └───────────────────────┬───────────────────────────────────┘  │
-│                          │                                      │
-│  ┌───────────────────────▼───────────────────────────────────┐  │
-│  │           React 18 + Vite + TypeScript                    │  │
-│  │  ┌─────────────────────────────────────────────────────┐  │  │
-│  │  │  Pages (10)  │  Components  │  Stores (3)  │  Hooks │  │  │
-│  │  └─────────────────────────────────────────────────────┘  │  │
-│  └───────────────────────┬───────────────────────────────────┘  │
-│                          │ HTTP / SSE                           │
-├──────────────────────────┼──────────────────────────────────────┤
-│                        服务层                                   │
-│  ┌───────────────────────▼───────────────────────────────────┐  │
-│  │              FastAPI Backend (Python)                      │  │
-│  │  ┌─────────────────────────────────────────────────────┐  │  │
-│  │  │  API Routes (5) │  Schemas (4)  │  Services (3)     │  │  │
-│  │  └─────────────────────────────────────────────────────┘  │  │
-│  └───────────────────────┬───────────────────────────────────┘  │
-│                          │                                      │
-├──────────────────────────┼──────────────────────────────────────┤
-│                        引擎层                                   │
-│  ┌───────────────────────▼───────────────────────────────────┐  │
-│  │              Python Engine (Unchanged)                     │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌─────────────┐  │  │
-│  │  │ bazi_    │ │ wuxing_  │ │ geju_    │ │ react_      │  │  │
-│  │  │ engine   │ │ calculator│ │ analyzer │ │ agent       │  │  │
-│  │  └──────────┘ └──────────┘ └──────────┘ └─────────────┘  │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐                  │  │
-│  │  │ shensha  │ │ ancient_ │ │ api_     │                  │  │
-│  │  │          │ │ texts    │ │ adapter  │                  │  │
-│  │  └──────────┘ └──────────┘ └──────────┘                  │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                          │                                      │
-├──────────────────────────┼──────────────────────────────────────┤
-│                        外部服务                                 │
-│  ┌───────────────────────▼───────────────────────────────────┐  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐                  │  │
-│  │  │ OpenAI   │ │ Anthropic│ │ lunar-   │                  │  │
-│  │  │ API      │ │ API      │ │ python   │                  │  │
-│  │  └──────────┘ └──────────┘ └──────────┘                  │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-```
+```mermaid
+graph TB
+    subgraph Client["客户端层"]
+        direction LR
+        Tauri["Tauri v2 Desktop<br/>Rust Shell + WebView2"]
+        Web["Web Browser<br/>localhost:5173"]
+        Streamlit["Streamlit<br/>localhost:8501<br/>(Legacy)"]
+    end
 
----
+    subgraph Frontend["React 前端"]
+        direction TB
+        Pages["10 Pages<br/>Lazy-loaded Routes"]
+        Components["UI Components<br/>bazi · chat · layout · ui"]
+        Stores["Zustand Stores<br/>bazi · chat · settings"]
+        Adapter["response-adapter.ts<br/>Backend → Frontend 格式转换"]
+        APIClient["api.ts<br/>Axios + SSE Client"]
+    end
 
-## 模块职责
+    subgraph Server["FastAPI 服务层"]
+        direction TB
+        Router["5 API Routes<br/>chart · chat · texts · compat · entertain"]
+        Schemas["Pydantic Schemas<br/>请求/响应验证"]
+        Services["3 Services<br/>bazi · agent · text"]
+        Normalize["_normalize_chart_data()<br/>前端格式 → 引擎格式"]
+    end
 
-### 前端层（frontend/）
+    subgraph Core["Python 核心引擎"]
+        direction TB
+        Engine["bazi_engine.py<br/>lunar-python 四柱计算"]
+        Shensha["shensha.py<br/>20+ 神煞判定"]
+        Tools["14 Tools<br/>bazi_tools · wuxing · geju"]
+        AgentCore["ReAct Agent<br/>react_agent · api_adapter"]
+    end
 
-#### 页面组件（src/pages/）
+    subgraph DataStore["数据层"]
+        direction TB
+        Texts["5 JSON Files<br/>穷通宝鉴 · 滴天髓 · 子平真诠<br/>三命通会 · 渊海子平"]
+        Chroma["ChromaDB<br/>sentence-transformers<br/>向量索引"]
+    end
 
-| 页面 | 路由 | 职责 |
-|------|------|------|
-| BaziCalculator | `/` | 出生信息输入，触发排盘计算 |
-| ChartVisualization | `/chart` | 四柱展示、五行图表、大运时间轴 |
-| LuckPillars | `/luck` | 大运十年运程 + 流年逐年分析 |
-| ElementsAnalysis | `/elements` | 五行力量雷达图、柱状图、详细分解 |
-| TenGods | `/ten-gods` | 十神映射、详解、性格分析 |
-| ShenSha | `/shensha` | 神煞按柱位分组展示 |
-| AnnualForecast | `/annual` | 当前流年运势、近十年流年一览 |
-| AIReading | `/ai-reading` | 一键 AI 全面分析（SSE 流式） |
-| Chat | `/chat` | 交互式 AI 命理咨询 |
-| Settings | `/settings` | API 配置、主题、导出导入 |
+    subgraph LLM["大模型 API"]
+        OpenAI["OpenAI / DeepSeek<br/>(OpenAI SDK)"]
+        Anthropic["Anthropic / MiMo / GLM<br/>(Anthropic SDK)"]
+    end
 
-#### 组件（src/components/）
-
-| 组件 | 职责 |
-|------|------|
-| `bazi/PillarCard` | 单柱展示（天干地支、五行配色、玻璃态） |
-| `bazi/FourPillarGrid` | 四柱网格布局 |
-| `bazi/WuxingRadar` | 五行雷达图（ECharts） |
-| `bazi/WuxingBar` | 五行柱状图（ECharts） |
-| `bazi/DayunTimeline` | 大运时间轴（ECharts） |
-| `chat/ChatPanel` | 对话主面板 |
-| `chat/ChatMessage` | 消息气泡（Markdown 渲染） |
-| `chat/ChatInput` | 输入框（自动伸缩） |
-| `chat/ToolCallStatus` | 工具调用状态面板 |
-| `layout/AppShell` | 侧边栏 + 主内容布局 |
-| `layout/Sidebar` | 导航侧边栏（五行图标） |
-
-#### 状态管理（src/stores/）
-
-| Store | 持久化 | 职责 |
-|-------|--------|------|
-| `useBaziStore` | localStorage | 命盘数据、计算历史、加载状态 |
-| `useChatStore` | localStorage | 对话消息历史 |
-| `useSettingsStore` | localStorage | API Key、Provider、主题、语言 |
-
-#### 数据适配（src/lib/response-adapter.ts）
-
-将后端扁平数组转换为前端嵌套对象：
-
-```
-后端: pillars: ["壬午", "丁未", "庚寅", "戊寅"]
-      wuxing: {"金(Metal)": 1, ...}
-      tg_gan: ["食神", "正官", "日主", "偏印"]
-
-前端: chart.year_pillar: {stem: "壬", branch: "午", element: "水", hidden_stems: ["丁","己"]}
-      element_balance: {金: 1, 木: 2, 水: 1, 火: 2, 土: 2}
-      ten_gods: [{name: "食神", character: "壬", element: "水", is_favorable: true}]
+    Client --> Frontend
+    Frontend -->|HTTP + SSE| Server
+    Server --> Normalize
+    Normalize --> Core
+    Server --> DataStore
+    Core --> AgentCore
+    AgentCore --> Tools
+    AgentCore --> LLM
+    Tools --> DataStore
 ```
 
 ---
 
-### 后端层（backend/）
+## 2. 前端架构
 
-#### API 路由（api/）
+```mermaid
+graph TB
+    subgraph Router["React Router v7"]
+        R1["/ → BaziCalculator"]
+        R2["/chart → ChartVisualization"]
+        R3["/luck → LuckPillars"]
+        R4["/elements → ElementsAnalysis"]
+        R5["/tengods → TenGods"]
+        R6["/shensha → ShenSha"]
+        R7["/annual → AnnualForecast"]
+        R8["/reading → AIReading"]
+        R9["/chat → Chat"]
+        R10["/settings → Settings"]
+    end
 
-| 路由 | 方法 | 职责 |
-|------|------|------|
-| `api/chart.py` | POST | 接收出生信息，调用引擎计算，缓存结果 |
-| `api/chat.py` | POST | SSE 流式对话，包装 Agent 循环 |
-| `api/texts.py` | GET | 古籍文献关键词检索 |
-| `api/compatibility.py` | POST | 双命盘计算 + 匹配度分析 |
-| `api/entertainment.py` | GET | 每日运势（娱乐） |
+    subgraph Layout["Layout"]
+        AppShell["AppShell"]
+        Sidebar["Sidebar<br/>10 Nav Items"]
+    end
 
-#### 数据模型（schemas/）
+    subgraph State["Zustand Stores"]
+        BaziStore["useBaziStore<br/>reading · input · persist"]
+        ChatStore["useChatStore<br/>messages · persist"]
+        SettingsStore["useSettingsStore<br/>provider · theme · persist"]
+    end
 
-| 文件 | 模型 | 用途 |
-|------|------|------|
-| `common.py` | BaziChartData, WuxingPowerData, GejuData, XingChongData | 共享数据结构 |
-| `chart.py` | ChartRequest, ChartResponse | 排盘请求/响应 |
-| `chat.py` | ChatRequest, ChatSSEEvent | 对话请求/事件 |
+    subgraph Components["Components"]
+        BaziComps["bazi/<br/>PillarCard · FourPillarGrid<br/>WuxingRadar · WuxingBar · DayunTimeline"]
+        ChatComps["chat/<br/>ChatPanel · ChatMessage<br/>ChatInput · ToolCallStatus"]
+        UIComps["ui/<br/>13 shadcn/ui components"]
+    end
 
-#### 服务层（services/）
+    subgraph Lib["Lib"]
+        API["api.ts<br/>calculateBazi · chatStream"]
+        Adapter["response-adapter.ts<br/>adaptChartResponse()"]
+        SSE["useChatSSE.ts<br/>SSE Hook"]
+    end
 
-| 服务 | 职责 |
-|------|------|
-| `bazi_service.py` | 封装引擎调用，256条LRU缓存，并发安全 |
-| `agent_service.py` | 封装 ReAct Agent，SSE 事件生成 |
-| `text_service.py` | 封装古籍检索 |
-
----
-
-### 引擎层（engine/, tools/, agent/）
-
-#### 核心引擎（engine/）
-
-| 文件 | 职责 |
-|------|------|
-| `bazi_engine.py` | 四柱八字计算主逻辑（基于 lunar-python） |
-| `shensha.py` | 神煞判定（天乙贵人、将星、驿马等） |
-
-#### 分析工具（tools/）
-
-| 文件 | 职责 |
-|------|------|
-| `wuxing_calculator.py` | 五行力量精算（天干+月令+藏干加权） |
-| `geju_analyzer.py` | 格局判定（建禄、从格、专旺等） |
-| `bazi_tools.py` | Agent 可调用的工具集 |
-
-#### AI Agent（agent/）
-
-| 文件 | 职责 |
-|------|------|
-| `react_agent.py` | ReAct 循环（Thought→Action→Observation→Answer） |
-| `api_adapter.py` | 统一 OpenAI/Anthropic API 调用 |
-| `context_manager.py` | 上下文管理 |
-
----
-
-## 数据流
-
-### 排盘计算流程
-
-```
-用户输入 (birth_date, birth_time, gender)
-    │
-    ▼
-前端 BaziCalculator.tsx
-    │ calculate()
-    ▼
-useBaziStore.calculate()
-    │ calculateBazi(input)
-    ▼
-api.ts: calculateBazi()
-    │ POST /api/v1/chart
-    │ {datetime_str: "2002-07-21 03:30", gender: "乾造 (Male)"}
-    ▼
-backend api/chart.py: post_chart()
-    │
-    ▼
-bazi_service.py: calculate_chart()
-    │ 检查缓存 → 缓存命中则直接返回
-    │ 缓存未命中 → 调用引擎
-    ▼
-bazi_engine.py: calculate_professional_bazi()
-    │ 调用 lunar-python 计算四柱
-    │ 计算藏干、纳音、神煞、大运等
-    ▼
-wuxing_calculator.py: calculate_wuxing_power()
-    │ 天干+月令+藏干加权计算
-    ▼
-geju_analyzer.py: analyze_geju()
-    │ 格局判定
-    ▼
-返回 {chart, wuxing_power, geju}
-    │
-    ▼
-api.ts: adaptChartResponse()
-    │ 转换扁平数组 → 嵌套对象
-    ▼
-useBaziStore: setReading()
-    │ 存储到 localStorage
-    ▼
-前端页面渲染
+    Router --> Layout
+    Layout --> Components
+    Components --> State
+    Components --> Lib
+    Lib --> State
 ```
 
-### AI 对话流程
+### 数据适配层
 
+前端和后端使用不同的数据格式，`response-adapter.ts` 负责转换：
+
+```mermaid
+graph LR
+    subgraph Backend["后端 Flat Format"]
+        B_Pillars["pillars: ['壬午','丁未','庚寅','戊寅']"]
+        B_TG["tg_gan: ['食神','正官','日主','偏印']"]
+        B_TZ["tg_zhi: ['丁己','丁己乙','甲丙戊','甲壬']"]
+        B_Nayin["nayin: ['杨柳木','天河水','松柏木','城头土']"]
+        B_DM["day_master: '庚'"]
+        B_MG["minggong: '甲寅'"]
+    end
+
+    subgraph Adapter["adaptChartResponse()"]
+        Transform["格式转换<br/>flat arrays → nested objects<br/>camelCase 映射"]
+    end
+
+    subgraph Frontend["前端 BaziReading"]
+        F_Chart["chart: {<br/>  year_pillar: {stem:'壬', branch:'午'},<br/>  day_master: '庚'<br/>}"]
+        F_EB["element_balance: {金:1, 木:2, ...}"]
+        F_TG["ten_gods: [{name,character,element}]"]
+        F_DY["dayun: [{ganzhi, start_age, ...}]"]
+        F_MG["ming_gong: '甲寅'"]
+    end
+
+    Backend --> Adapter --> Frontend
 ```
-用户输入消息
-    │
-    ▼
-Chat.tsx: handleSend()
-    │ addMessage(userMsg)
-    ▼
-useChatSSE: sendMessage()
-    │
-    ▼
-api.ts: chatStream()
-    │ POST /api/v1/chat/stream (SSE)
-    │ 转换为后端 ChatRequest 格式
-    ▼
-backend api/chat.py: post_chat_stream()
-    │
-    ▼
-agent_service.py: stream_chat()
-    │ 启动 ReAct Agent 循环
-    ▼
-react_agent.py: run_react_loop_streaming()
-    │
-    ├─→ Thought: 分析用户问题
-    ├─→ Action: 调用工具（get_bazi_chart, search_texts, ...）
-    ├─→ Observation: 获取工具结果
-    ├─→ ... 重复 ...
-    └─→ Final Answer: 生成回答
-    │
-    ▼
-SSE 事件流返回前端
-    │
-    ├─→ onToken: 实时更新文本
-    ├─→ onStatus: 更新状态提示
-    ├─→ onToolCall: 更新工具调用状态
-    └─→ onDone: 完成，保存消息
-    │
-    ▼
-前端渲染 Markdown 内容
+
+反向转换在 `agent_service._normalize_chart_data()` 中完成：
+
+```mermaid
+graph LR
+    subgraph Frontend["前端 BaziReading"]
+        F_Chart["chart.year_pillar.stem + branch"]
+        F_Annotations["pillar_annotations.year.ten_god_gan"]
+        F_MG["ming_gong / tai_yuan"]
+    end
+
+    subgraph Normalize["_normalize_chart_data()"]
+        N_Transform["嵌套对象 → 扁平字段<br/>ming_gong → minggong<br/>element_balance → wuxing"]
+    end
+
+    subgraph Engine["引擎 Flat Format"]
+        E_Pillars["pillars: ['壬午','丁未',...]"]
+        E_TG["tg_gan / tg_zhi"]
+        E_MG["minggong / taiyuan"]
+    end
+
+    Frontend --> Normalize --> Engine
 ```
 
 ---
 
-## 关键设计决策
+## 3. 后端架构
 
-| 决策 | 选择 | 理由 |
-|------|------|------|
-| 前端框架 | React 18 + Vite | 快速 HMR，小包体积，Tauri 原生支持 |
-| UI 库 | shadcn/ui | 完全 CSS 控制，Tailwind 原生，可组合 |
-| 状态管理 | Zustand + persist | 极简样板，无需 Provider，自动持久化 |
-| 图表库 | ECharts | 原生中文支持，雷达图/柱状图/时间轴 |
-| 后端框架 | FastAPI | 异步，SSE 支持，自动 OpenAPI 文档 |
-| 桌面框架 | Tauri v2 | 3-10MB EXE，WebView2，Rust 安全性 |
-| 流式协议 | SSE（非 WebSocket） | 更简单，单向足够，浏览器原生支持 |
-| 数据适配 | 响应适配器 | 后端保持扁平数组，前端保持嵌套对象，适配器桥接 |
-| 缓存策略 | LRU 256条 | 避免重复计算，内存可控 |
+```mermaid
+graph TB
+    subgraph Middleware["中间件"]
+        CORS["CORS Middleware<br/>7 allowed origins"]
+        StaticFiles["StaticFiles<br/>frontend/dist/"]
+    end
 
----
+    subgraph Routes["API Routes"]
+        ChartRoute["/api/v1/chart<br/>POST → bazi_service.calculate_chart()"]
+        ChatRoute["/api/v1/chat/stream<br/>POST → agent_service.stream_chat()"]
+        TextsRoute["/api/v1/texts<br/>GET → text_service.query()"]
+        CompatRoute["/api/v1/compatibility<br/>POST → bazi_service × 2"]
+        EntertainRoute["/api/v1/entertainment/*<br/>GET → entertainment"]
+        HealthRoute["/health<br/>GET → {status: ok}"]
+    end
 
-## 缓存策略
+    subgraph Services["Services"]
+        BaziService["bazi_service.py<br/>calculate_chart()<br/>256-entry LRU Cache<br/>Thread-safe"]
+        AgentService["agent_service.py<br/>stream_chat()<br/>_normalize_chart_data()"]
+        TextService["text_service.py<br/>query() · get_all_entries()"]
+    end
 
-### 后端缓存
+    subgraph Schemas["Pydantic Schemas"]
+        ChartReq["ChartRequest<br/>datetime_str · gender"]
+        ChartResp["ChartResponse<br/>chart · wuxing_power · geju"]
+        ChatReq["ChatRequest<br/>message · provider · api_key · chart_data · history"]
+    end
 
-- **命盘计算**: 256条 LRU 缓存，key 为 `datetime_str|gender`
-- **缓存命中**: 直接返回，跳过所有计算
-- **缓存淘汰**: FIFO 淘汰最旧条目
-
-### 前端缓存
-
-- **Zustand persist**: 命盘数据、对话历史、设置持久化到 localStorage
-- **页面级缓存**: useMemo 缓存派生数据（图表配置、排序结果等）
-
----
-
-## 错误处理
-
-### 前端
-
-- **API 错误**: Axios 拦截器统一处理，提取 `detail` 字段
-- **SSE 错误**: `onError` 回调，支持重试（最多2次，指数退避）
-- **UI 错误**: 错误状态展示，支持重试按钮
-
-### 后端
-
-- **验证错误**: Pydantic 自动返回 422 + 详细字段错误
-- **业务错误**: HTTPException 返回 400/500 + 错误描述
-- **引擎异常**: 捕获并记录日志，返回通用错误信息
+    Middleware --> Routes
+    Routes --> Services
+    Services --> Schemas
+```
 
 ---
 
-## 安全考虑
+## 4. AI Agent 架构
 
-- **API Key**: 仅在前端 localStorage 存储，不传输至后端持久化
-- **CORS**: 仅允许 localhost 和 tauri://localhost
-- **输入验证**: Pydantic 严格验证所有输入
-- **无 SQL 注入**: 无数据库，纯计算服务
-- **无 XSS**: React 默认转义，Markdown 渲染使用 remark-gfm
+### ReAct 推理循环
+
+```mermaid
+stateDiagram-v2
+    [*] --> ReceiveMessage: 用户消息
+    ReceiveMessage --> BuildPrompt: 构建 System Prompt<br/>+ 命盘参数 + 古籍参考
+    
+    state "ReAct Loop (max 8)" as Loop {
+        BuildPrompt --> CallLLM: 发送 messages + tools
+        CallLLM --> HasToolCall: 模型返回
+        
+        state HasToolCall <<choice>>
+        HasToolCall --> ExecuteTool: tool_calls 存在
+        HasToolCall --> FinalAnswer: 纯文本回答
+        
+        ExecuteTool --> AppendResult: 执行工具 → 结果
+        AppendResult --> CallLLM: 追加到消息历史
+        
+        FinalAnswer --> FactCheck: 干支校验
+    }
+    
+    FactCheck --> [*]: SSE done event
+```
+
+### API 适配层
+
+```mermaid
+graph TD
+    subgraph Providers["Provider Detection"]
+        Check{"provider in<br/>ANTHROPIC_PROVIDERS?"}
+    end
+
+    subgraph AnthropicPath["Anthropic SDK Path"]
+        A_Client["Anthropic()<br/>api_key · base_url"]
+        A_Call["messages.create()<br/>stream=True"]
+        A_Parse["Parse tool_use blocks"]
+    end
+
+    subgraph OpenAIPath["OpenAI SDK Path"]
+        O_Client["OpenAI()<br/>api_key · base_url"]
+        O_Call["chat.completions.create()<br/>stream=True"]
+        O_Parse["Parse tool_calls"]
+    end
+
+    subgraph ANTHROPIC_PROVIDERS["ANTHROPIC_PROVIDERS"]
+        P1["MiMo"]
+        P2["GLM"]
+        P3["Zhipu"]
+        P4["智谱 GLM"]
+        P5["Anthropic (兼容)"]
+    end
+
+    Check -->|"Yes<br/>MiMo/GLM/Zhipu"| AnthropicPath
+    Check -->|"No<br/>OpenAI/DeepSeek/..."| OpenAIPath
+```
+
+### 14 个工具注册表
+
+```mermaid
+graph TD
+    subgraph Registry["TOOL_REGISTRY + TOOL_SCHEMAS"]
+        D["dispatch_tool(name, args, bazi_data)"]
+    end
+
+    subgraph G1["计算类"]
+        T1["get_annual_fortune(year)"]
+        T2["get_dayun_stage(bazi_data, current_year)"]
+        T3["calculate_wuxing_power(bazi_data)"]
+        T4["analyze_wuxing_balance(bazi_data)"]
+        T5["analyze_geju(bazi_data)"]
+    end
+
+    subgraph G2["古籍查询类"]
+        T6["query_qiongtong_guidance(day_master, month_zhi)"]
+        T7["query_disitian_guidance(day_master)"]
+        T8["query_ziping_guidance(day_master, month_zhi)"]
+        T9["query_sanming_guidance(category, key)"]
+        T10["query_classical_text(source, keyword)"]
+    end
+
+    subgraph G3["辅助类"]
+        T11["rag_retrieve(query, top_k)"]
+        T12["query_xing_chong_he_hai(chars, relation_type)"]
+        T13["explain_shensha(name)"]
+        T14["fact_check_ganzhi(year, claimed_ganzhi)"]
+    end
+
+    D --> G1 & G2 & G3
+```
+
+---
+
+## 5. SSE 流式通信
+
+```mermaid
+sequenceDiagram
+    participant Browser as React 前端
+    participant Server as FastAPI /chat/stream
+
+    Browser->>Server: POST (fetch + ReadableStream)
+    Note over Browser: body: {message, provider, chart_data, history}
+
+    Server->>Server: _normalize_chart_data(chart_data)
+    Server->>Server: build_system_prompt(bazi_data)
+
+    loop ReAct Loop
+        Server->>Server: Call AI Model
+        alt Tool Call
+            Server-->>Browser: event: status\ndata: {"message": "调用工具..."}
+            Server-->>Browser: event: tool_call\ndata: {"name": "analyze_geju", ...}
+        else Token Stream
+            loop Each Token
+                Server-->>Browser: event: token\ndata: {"content": "..."}
+            end
+        end
+    end
+
+    Server-->>Browser: event: done\ndata: {"content": "完整回答"}
+    Note over Browser: onToken → 累积显示<br/>onStatus → 状态更新<br/>onToolCall → 工具卡片<br/>onDone → 完成
+```
+
+---
+
+## 6. 数据模型
+
+### 命盘数据流转
+
+```mermaid
+graph LR
+    subgraph Input["用户输入 BaziInput"]
+        I_DT["birth_date: '2002-07-21'"]
+        I_TM["birth_time: '03:30'"]
+        I_GD["gender: 'male'"]
+    end
+
+    subgraph Engine["引擎输出 (Flat)"]
+        E_P["pillars: str[4]"]
+        E_TG["tg_gan: str[4]"]
+        E_TZ["tg_zhi: str[4]"]
+        E_N["nayin: str[4]"]
+        E_DM["day_master: str"]
+        E_GD["gender: '乾造 (Male)'"]
+        E_MG["minggong: str"]
+        E_TY["taiyuan: str"]
+        E_SG["shengong: str"]
+        E_TX["taixi: str"]
+        E_DS["dishi: str[4]"]
+        E_XK["xunkong: str[4]"]
+        E_SS["shensha: str[]"]
+        E_SD["shensha_detail: dict"]
+        E_WX["wuxing: dict"]
+        E_XC["xingchong: dict"]
+        E_DY["dayun: list"]
+    end
+
+    subgraph Frontend["前端 BaziReading"]
+        F_C["chart: {<br/>  year/month/day/hour_pillar: Pillar<br/>  day_master: str<br/>}"]
+        F_EB["element_balance: dict"]
+        F_TG["ten_gods: TenGod[]"]
+        F_DY["dayun: DayunEntry[]"]
+        F_AP["annual_pillars: AnnualPillar[]"]
+        F_PA["pillar_annotations: dict"]
+        F_WP["wuxing_power: WuxingPower"]
+        F_GJ["geju: Geju"]
+        F_MG["ming_gong: str"]
+        F_TY["tai_yuan: str"]
+        F_GD["gender: str"]
+    end
+
+    Input -->|"calculateBazi()"| Engine
+    Engine -->|"adaptChartResponse()"| Frontend
+```
+
+### Pydantic Schemas
+
+```mermaid
+classDiagram
+    class ChartRequest {
+        +str datetime_str
+        +str gender
+    }
+
+    class ChartResponse {
+        +dict chart
+        +WuxingPowerData wuxing_power
+        +dict geju
+    }
+
+    class ChatRequest {
+        +str message
+        +str provider
+        +str api_key
+        +str base_url
+        +str model
+        +dict chart_data
+        +list history
+        +int max_steps
+    }
+
+    class BaziChartData {
+        +list pillars
+        +list tg_gan
+        +list tg_zhi
+        +list nayin
+        +str day_master
+        +str gender
+        +str minggong
+        +str taiyuan
+        +dict wuxing
+        +list dayun
+    }
+
+    ChartRequest --> ChartResponse : POST /chart
+    ChatRequest --> BaziChartData : chart_data field
+```
+
+---
+
+## 7. 测试架构
+
+```mermaid
+graph TB
+    subgraph Tests["452 Tests"]
+        subgraph API["API 层 (72)"]
+            TA1["test_backend_api<br/>17 tests"]
+            TA2["test_api_comprehensive<br/>55 tests"]
+        end
+
+        subgraph Engine["引擎层 (141)"]
+            TE1["test_engine<br/>11 tests"]
+            TE2["test_engine_comprehensive<br/>130 tests"]
+        end
+
+        subgraph Tools["工具层 (141)"]
+            TT1["test_tools<br/>18 tests"]
+            TT2["test_tools_comprehensive<br/>118 tests"]
+            TT3["test_rag_retrieve<br/>5 tests"]
+        end
+
+        subgraph Service["服务层 (96)"]
+            TS1["test_agent_service<br/>73 tests"]
+            TS2["test_chart_data_adapter<br/>23 tests"]
+        end
+
+        subgraph Data["数据层 (2)"]
+            TD1["test_text_service<br/>3 tests"]
+            TD2["test_scholar_agent<br/>2 tests"]
+        end
+    end
+```
+
+---
+
+## 8. 部署模式
+
+```mermaid
+graph TB
+    subgraph Mode1["模式 1: Web 开发"]
+        Vite["Vite Dev Server<br/>:5173"]
+        Uvicorn1["uvicorn<br/>:8000"]
+        Vite -->|"Proxy /api"| Uvicorn1
+    end
+
+    subgraph Mode2["模式 2: Web 生产"]
+        Browser2["Browser<br/>:8000"]
+        Uvicorn2["uvicorn<br/>:8000"]
+        Uvicorn2 -->|"serve frontend/dist/"| Browser2
+    end
+
+    subgraph Mode3["模式 3: 桌面应用"]
+        TauriEXE["Tauri EXE<br/>WebView2"]
+        Uvicorn3["uvicorn<br/>:8000"]
+        TauriEXE -->|"HTTP to 127.0.0.1:8000"| Uvicorn3
+    end
+
+    subgraph Mode4["模式 4: Streamlit"]
+        StreamlitApp["streamlit_app.py<br/>:8501"]
+    end
+```
+
+---
+
+## 9. 配置系统
+
+```mermaid
+graph TD
+    subgraph Config["Pydantic Settings"]
+        Env[".env file<br/>BAZI_ prefix"]
+        EnvVars["Environment Variables<br/>BAZI_ prefix"]
+    end
+
+    subgraph Settings["Settings"]
+        S_Debug["DEBUG: bool = False"]
+        S_Host["HOST: str = 0.0.0.0"]
+        S_Port["PORT: int = 8000"]
+        S_CORS["CORS_ORIGINS: List[str]"]
+        S_OpenAI["OPENAI_API_KEY · BASE_URL · MODEL"]
+        S_Anthro["ANTHROPIC_API_KEY · BASE_URL"]
+    end
+
+    subgraph Consumers["使用方"]
+        C_Main["main.py<br/>app setup"]
+        C_Chat["chat.py<br/>CORS middleware"]
+        C_Agent["agent_service.py<br/>API auto-fill"]
+    end
+
+    Config --> Settings
+    Settings --> Consumers
+```
