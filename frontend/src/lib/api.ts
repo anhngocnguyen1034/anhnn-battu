@@ -109,7 +109,7 @@ export async function chatStream(
     api_key: params.provider.api_key,
     base_url: params.provider.base_url ?? "https://api.openai.com/v1",
     model: params.provider.model,
-    chart_data: params.bazi_context?.chart ?? null,
+    chart_data: params.bazi_context ?? null,
     history: params.history.map((m) => ({ role: m.role, content: m.content })),
     max_steps: 8,
   };
