@@ -51,6 +51,21 @@
         "运年",
         "强弱"
       ]
+    },
+    {
+      "id": "yuanhai_ziping",
+      "name": "渊海子平",
+      "author": "徐子平（传）/ 徐大升编",
+      "dynasty": "宋",
+      "description": "子平法基础，格局论法，十神论断，天干地支体象",
+      "file": "yuanhai_ziping.json",
+      "categories": [
+        "天干体象",
+        "地支体象",
+        "十神",
+        "论法",
+        "格局"
+      ]
     }
   ]
 }
