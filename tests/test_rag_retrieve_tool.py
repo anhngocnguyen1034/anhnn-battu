@@ -2,8 +2,6 @@
 """Tests for rag_retrieve tool"""
 import pytest
 import json
-import sys
-sys.path.insert(0, 'C:/Users/Gaaiyun/Projects/FOR-BAZI/.worktrees/feature-rag')
 
 from tools.bazi_tools import TOOL_REGISTRY, dispatch_tool
 

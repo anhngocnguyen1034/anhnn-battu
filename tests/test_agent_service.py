@@ -9,12 +9,9 @@ integration, and system prompt correctness.
 """
 
 import json
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-sys.path.insert(0, "C:/Users/Gaaiyun/Projects/FOR-BAZI")
 
 from backend.services.agent_service import _normalize_chart_data, stream_chat
 

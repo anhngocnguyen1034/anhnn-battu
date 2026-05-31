@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 取消同一分支上仍在排队/运行的旧任务，节省 CI 资源
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 轻量门禁：不依赖任何重型第三方包，始终应当通过。
+  # 作用：① 全量源码 py_compile（语法/字节码级编译）；
+  #       ② ruff 仅做"硬错误"检查（语法错误 / 未定义名 等，不含风格规则，
+  #          避免对既有代码库的历史风格误报）；
+  #       ③ 轻量 import-smoke：导入不含重依赖的本地包，验证包结构与
+  #          tests/conftest.py 的项目根注入正常工作。
+  # ---------------------------------------------------------------------------
+  lint-compile:
+    name: lint + compile (轻量门禁)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: py_compile 全量源码
+        run: |
+          python -m compileall -q agent backend data engine mcp_server prompts scripts tools tests \
+            launcher.py streamlit_app.py
+
+      - name: 安装 ruff
+        run: python -m pip install --upgrade pip ruff
+
+      - name: ruff 硬错误检查（仅语法/未定义名，不含风格）
+        run: ruff check --select E9,F63,F7,F82 .
+
+      - name: import-smoke（轻量本地包，验证 conftest 根注入）
+        run: |
+          python -c "import sys; sys.path.insert(0, '.'); import data.text_service; print('[OK] data.text_service import')"
+
+  # ---------------------------------------------------------------------------
+  # 完整测试套件（尽力而为）：452 项测试依赖重型包
+  # （lunar-python / fastapi / chromadb / sentence-transformers / torch 等）。
+  # 这些包在 CI 上体积大、安装慢、偶发不稳定，故本 job 标记为 continue-on-error，
+  # 其成败【不】作为 CI 必过门禁——真正的门禁是上面的 lint-compile。
+  # 若环境装得动重依赖，则此处会真实跑全量 pytest。
+  # ---------------------------------------------------------------------------
+  tests:
+    name: pytest 全量测试（尽力而为，重依赖）
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: 安装依赖（含重型包）
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: 运行 pytest
+        run: pytest -q
