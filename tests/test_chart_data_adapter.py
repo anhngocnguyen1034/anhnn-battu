@@ -7,11 +7,8 @@ to the flat backend engine format expected by tools and system prompts.
 """
 
 import json
-import sys
 
 import pytest
-
-sys.path.insert(0, "C:/Users/Gaaiyun/Projects/FOR-BAZI")
 
 from backend.services.agent_service import _normalize_chart_data
 

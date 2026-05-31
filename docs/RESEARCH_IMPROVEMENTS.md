@@ -9,7 +9,7 @@
 ### 1. lunar-python（6tail/lunar-python）
 
 - **用途**：排盘已在使用；其 `LunarUtil` 提供权威常量，可替代手写表。
-- **路径**：`c:\Users\gaaiy\Desktop\BAZI\lunar-python-source\lunar_python\util\LunarUtil.py`（或 pip 安装的 `lunar_python.util.LunarUtil`）。
+- **路径**：pip 安装包内的 `lunar_python/util/LunarUtil.py`（即 `lunar_python.util.LunarUtil`）。
 
 **可直接引用的常量：**
 
@@ -125,7 +125,7 @@
 
 ## 三、参考链接与本地路径
 
-- lunar-python 源码（本地）：`c:\Users\gaaiy\Desktop\BAZI\lunar-python-source`
+- lunar-python 源码：见 PyPI 包 `lunar_python`（pip 安装后的 `lunar_python/` 目录），或上游仓库 <https://github.com/6tail/lunar-python>
 - china-testing/bazi：<https://github.com/china-testing/bazi>（本次调研已抓取 bazi.py / datas.py / ganzhi.py 关键片段）
 - Cantian 格局：<https://www.cantian.ai/wiki/zh-Hans/other_words_explanations/geju/>
 - 五行分数参考：<http://www.131.com.tw/word/b3_2_14.htm>

@@ -8,11 +8,8 @@ Also tests dispatch_tool routing and edge cases.
 """
 
 import json
-import sys
 
 import pytest
-
-sys.path.insert(0, "C:/Users/Gaaiyun/Projects/FOR-BAZI")
 
 from tools.bazi_tools import (
     TOOL_REGISTRY,

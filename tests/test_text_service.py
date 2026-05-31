@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for TextService"""
 import pytest
-import sys
-sys.path.insert(0, 'C:/Users/Gaaiyun/Projects/FOR-BAZI/.worktrees/feature-rag')
 
 from data.text_service import TextService
 
